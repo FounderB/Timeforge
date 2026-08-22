@@ -1,3 +1,10 @@
+## 0.4.2 — Update/Repair always in-place
+
+- `update` / `repair` / `open --repair` never wipe-and-reclone into a new folder
+- Same path only: `git fetch` + materialize missing objects; local files survive
+- `UpdateResult.same_path` + `mode` (`inplace-fetch` / `inplace-materialize`)
+- Tests: local bare remotes prove new files appear without path change
+
 ## 0.4.1 — Promisor harden + pin × fix
 
 - Pin unpin works (× is a real button; stopPropagation)

@@ -345,7 +345,7 @@ async function doUpdate(){
   }catch(e){document.getElementById('out').innerHTML=showErr(e.message||e);bindErrActions(document.getElementById('out'))}
 }
 async function doRepair(){
-  if(!confirm('Re-fetch / re-clone this repo to fix missing git objects?')) return;
+  if(!confirm('Repair this clone IN PLACE (same folder — fetch missing objects, no full wipe)?')) return;
   document.getElementById('out').innerHTML='<div class="empty">Repairing clone (may take a while)…</div>';
   try{
     const r=await fetch('/api/repair',{method:'POST'});

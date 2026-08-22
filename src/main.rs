@@ -265,6 +265,8 @@ fn run() -> Result<(), String> {
                 report::print_json(&u);
             } else {
                 println!("update  {}", u.message);
+                println!("path    {} (same_path={})", u.path, u.same_path);
+                println!("mode    {}", u.mode);
                 println!("HEAD    {} → {}", u.before, u.after);
                 if u.partial {
                     println!("note    still marked partial — try: timeforge repair");
@@ -277,6 +279,8 @@ fn run() -> Result<(), String> {
                 report::print_json(&u);
             } else {
                 println!("repair  {}", u.message);
+                println!("path    {} (same_path={})", u.path, u.same_path);
+                println!("mode    {}", u.mode);
                 println!("HEAD    {} → {}", u.before, u.after);
             }
         }
