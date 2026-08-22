@@ -1,82 +1,88 @@
 # Timeforge
 
-**Repo Time Machine for GitHub — see what changed, who owns it, and why it broke.**
+**Repo Time Machine for GitHub — local or any remote repo.**
 
-Part of the **FounderB** stack: [FluxTap](https://github.com/FounderB/FluxTap) · [Tracefuse](https://github.com/FounderB/Tracefuse) · [SignShield](https://github.com/FounderB/SignShield) · **Timeforge**
+See what changed, who owns it, why it broke — on *your* machine or any `owner/repo`.
 
-<p align="center">
-  <img alt="Rust" src="https://img.shields.io/badge/Rust-1.70+-5eead4?style=for-the-badge&logo=rust"/>
-  <img alt="License" src="https://img.shields.io/badge/License-MIT-38bdf8?style=for-the-badge"/>
-</p>
+Part of **FounderB**: [FluxTap](https://github.com/FounderB/FluxTap) · [Tracefuse](https://github.com/FounderB/Tracefuse) · [SignShield](https://github.com/FounderB/SignShield) · **Timeforge**
 
 ---
 
-## Why Timeforge?
-
-| Pain | Timeforge |
-|------|-----------|
-| `git blame` is dry | **Blame+** with ownership bars |
-| “Who broke CI?” | **Why** ranks likely culprit commits |
-| Bus factor unknown | **Heatmap** + warning |
-| PR touches one file… | **Blast radius** shows what usually moves with it |
-
----
-
-## 60-second demo
+## Quick start
 
 ```bash
 git clone https://github.com/FounderB/Timeforge.git
 cd Timeforge
 cargo build --release
 
-# run inside any git repo (or pass --repo)
+# local repo (cwd)
 ./target/release/timeforge timeline README.md
-./target/release/timeforge why --query fix
+./target/release/timeforge hotspots
 ./target/release/timeforge heatmap
-./target/release/timeforge blast src/main.rs
 
-# cinematic UI
+# ANY GitHub repo (cloned to ~/.timeforge/repos)
+./target/release/timeforge open FounderB/SignShield
+./target/release/timeforge --repo FounderB/SignShield timeline README.md
+./target/release/timeforge --repo rust-lang/mdBook contributors
+
+# web UI — open remotes from the browser
 ./target/release/timeforge serve
 # → http://127.0.0.1:8790
 ```
 
 ---
 
-## CLI
+## Remote repos
+
+| Spec | Example |
+|------|---------|
+| `owner/repo` | `FounderB/SignShield` |
+| HTTPS | `https://github.com/rust-lang/mdBook` |
+| Local path | `/home/you/code/app` |
 
 ```bash
-timeforge timeline <path> [--limit 30] [--json]
-timeforge blame <path> [--lines 40] [--json]
-timeforge why [--path src/] [--since "90 days ago"] [--query keyword] [--json]
-timeforge heatmap [--since "180 days ago"] [--path src/] [--json]
-timeforge blast <path> [--limit 15] [--json]
-timeforge serve [--addr 127.0.0.1:8790]
+timeforge open owner/repo          # clone (blobless) + cache
+timeforge open owner/repo --update # fetch latest
+timeforge repos                    # list ~/.timeforge/repos
+timeforge --repo owner/repo why --query fix
 ```
 
-Global: `--repo /path/to/git/repo`
+---
+
+## CLI (v0.2)
+
+```bash
+timeforge open <spec>
+timeforge repos
+timeforge timeline <path>
+timeforge blame <path>
+timeforge why [--path …] [--query …]
+timeforge heatmap
+timeforge blast <path>
+timeforge hotspots          # highest churn files
+timeforge stale --days 180  # untouched files
+timeforge contributors
+timeforge churn             # weekly commit chart
+timeforge serve
+```
+
+Global: `--repo <path|owner/repo|url>` · `--update`
 
 ---
 
-## Features (v0.1)
+## Features
 
-1. **Time Machine** — file commit cinema (dates, +/- stats, PR `#` hints)
-2. **Why broke** — scores recent commits (hotfix keywords, sensitive paths, blast size)
-3. **Ownership heatmap** — commits/files per author + bus-factor warning
-4. **Blast radius** — co-change affinity with the target path
-5. **Web UI** — same engines in the browser
-
----
-
-## Roadmap
-
-- [x] CLI + local web demo
-- [ ] GitHub App (PR check: blast radius)
-- [ ] Guilty commit ↔ failing test deep link
-- [ ] Diff cinema animation
-- [ ] VS Code / Cursor extension
+1. **Time Machine** — file history + PR hints  
+2. **Why broke** — ranked culprit commits  
+3. **Heatmap** — ownership / bus factor  
+4. **Blast radius** — co-change affinity  
+5. **Hotspots** — files with most churn  
+6. **Stale** — abandoned paths  
+7. **Contributors** / **Churn** — people & tempo  
+8. **Remote open** — analyze any public GitHub repo  
 
 ---
 
 ## License
 
-MIT — see [LICENSE](LICENSE)
+MIT

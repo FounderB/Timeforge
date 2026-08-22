@@ -1,17 +1,25 @@
+use std::path::Path;
+use std::sync::Mutex;
+
 use serde_json::json;
 use tiny_http::{Header, Method, Response, Server};
 
-use crate::{blast_radius, file_blame, file_timeline, ownership_heatmap, why_broke, Repo};
+use crate::{
+    blast_radius, commit_churn, contributors, file_blame, file_hotspots, file_timeline,
+    list_cached, open_github, ownership_heatmap, remote, stale_files, why_broke, Repo,
+};
 
 const INDEX: &str = include_str!("../../web/index.html");
 
-pub fn serve(addr: &str, repo_path: &std::path::Path) -> Result<(), String> {
-    let repo = Repo::discover(repo_path)?;
+pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
+    let initial = Repo::discover(repo_path)?;
+    let state = Mutex::new(initial);
     let server = Server::http(addr).map_err(|e| e.to_string())?;
     eprintln!("Timeforge UI → http://{addr}");
-    eprintln!("Repo: {}", repo.path().display());
+    eprintln!("Repo: {}", state.lock().unwrap().path().display());
+    eprintln!("Open remotes via UI or: timeforge open owner/repo");
 
-    for request in server.incoming_requests() {
+    for mut request in server.incoming_requests() {
         let url = request.url().to_string();
         let method = request.method().clone();
 
@@ -27,8 +35,13 @@ pub fn serve(addr: &str, repo_path: &std::path::Path) -> Result<(), String> {
                 Response::from_string("")
                     .with_status_code(204)
                     .with_header(Header::from_bytes("Access-Control-Allow-Origin", "*").unwrap())
-                    .with_header(Header::from_bytes("Access-Control-Allow-Methods", "GET,POST,OPTIONS").unwrap())
-                    .with_header(Header::from_bytes("Access-Control-Allow-Headers", "Content-Type").unwrap()),
+                    .with_header(
+                        Header::from_bytes("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
+                            .unwrap(),
+                    )
+                    .with_header(
+                        Header::from_bytes("Access-Control-Allow-Headers", "Content-Type").unwrap(),
+                    ),
             );
             continue;
         }
@@ -39,6 +52,7 @@ pub fn serve(addr: &str, repo_path: &std::path::Path) -> Result<(), String> {
         }
 
         if url == "/api/info" {
+            let repo = state.lock().unwrap();
             let body = json!({
                 "repo": repo.path().display().to_string(),
                 "product": "Timeforge",
@@ -49,71 +63,226 @@ pub fn serve(addr: &str, repo_path: &std::path::Path) -> Result<(), String> {
             continue;
         }
 
-        if url.starts_with("/api/timeline") && method == Method::Get {
-            let path = query_param(&url, "path").unwrap_or_else(|| "README.md".into());
+        if url == "/api/repos" {
+            match list_cached() {
+                Ok(list) => {
+                    let body = serde_json::to_string_pretty(&list).unwrap_or_default();
+                    let _ = request.respond(respond(200, &body, "application/json"));
+                }
+                Err(e) => {
+                    let _ = request.respond(respond(
+                        400,
+                        &json!({"error": e}).to_string(),
+                        "application/json",
+                    ));
+                }
+            }
+            continue;
+        }
+
+        if url == "/api/open" && method == Method::Post {
+            let mut body = String::new();
+            let _ = request.as_reader().read_to_string(&mut body);
+            let spec = serde_json::from_str::<serde_json::Value>(&body)
+                .ok()
+                .and_then(|v| {
+                    v.get("spec")
+                        .and_then(|s| s.as_str())
+                        .map(|s| s.to_string())
+                })
+                .or_else(|| query_param(&format!("?{body}"), "spec"));
+            let Some(spec) = spec else {
+                let _ = request.respond(respond(
+                    400,
+                    r#"{"error":"provide {\"spec\":\"owner/repo\"}"}"#,
+                    "application/json",
+                ));
+                continue;
+            };
+            match remote::parse_github_spec(&spec).and_then(|(o, n)| open_github(&o, &n, false)) {
+                Ok(repo) => {
+                    let path = repo.path().display().to_string();
+                    *state.lock().unwrap() = repo;
+                    let _ = request.respond(respond(
+                        200,
+                        &json!({"ok": true, "repo": path}).to_string(),
+                        "application/json",
+                    ));
+                }
+                Err(e) => {
+                    let _ = request.respond(respond(
+                        400,
+                        &json!({"error": e}).to_string(),
+                        "application/json",
+                    ));
+                }
+            }
+            continue;
+        }
+
+        let path_q = query_param(&url, "path");
+        let q = query_param(&url, "q");
+
+        if url.starts_with("/api/timeline") {
+            let path = path_q.unwrap_or_else(|| "README.md".into());
+            let repo = state.lock().unwrap();
             match file_timeline(&repo, &path, 40) {
                 Ok(t) => {
                     let body = serde_json::to_string_pretty(&t).unwrap_or_default();
                     let _ = request.respond(respond(200, &body, "application/json"));
                 }
                 Err(e) => {
-                    let _ = request.respond(respond(400, &json!({"error": e}).to_string(), "application/json"));
+                    let _ = request.respond(respond(
+                        400,
+                        &json!({"error": e}).to_string(),
+                        "application/json",
+                    ));
                 }
             }
             continue;
         }
 
         if url.starts_with("/api/why") {
-            let path = query_param(&url, "path");
-            let kw = query_param(&url, "q");
-            match why_broke(&repo, path.as_deref(), "90 days ago", kw.as_deref(), 8) {
+            let repo = state.lock().unwrap();
+            match why_broke(&repo, path_q.as_deref(), "90 days ago", q.as_deref(), 8) {
                 Ok(w) => {
                     let body = serde_json::to_string_pretty(&w).unwrap_or_default();
                     let _ = request.respond(respond(200, &body, "application/json"));
                 }
                 Err(e) => {
-                    let _ = request.respond(respond(400, &json!({"error": e}).to_string(), "application/json"));
+                    let _ = request.respond(respond(
+                        400,
+                        &json!({"error": e}).to_string(),
+                        "application/json",
+                    ));
                 }
             }
             continue;
         }
 
         if url.starts_with("/api/heatmap") {
+            let repo = state.lock().unwrap();
             match ownership_heatmap(&repo, "180 days ago", None) {
                 Ok(h) => {
                     let body = serde_json::to_string_pretty(&h).unwrap_or_default();
                     let _ = request.respond(respond(200, &body, "application/json"));
                 }
                 Err(e) => {
-                    let _ = request.respond(respond(400, &json!({"error": e}).to_string(), "application/json"));
+                    let _ = request.respond(respond(
+                        400,
+                        &json!({"error": e}).to_string(),
+                        "application/json",
+                    ));
                 }
             }
             continue;
         }
 
         if url.starts_with("/api/blast") {
-            let path = query_param(&url, "path").unwrap_or_else(|| "src/main.rs".into());
+            let path = path_q.unwrap_or_else(|| "src/main.rs".into());
+            let repo = state.lock().unwrap();
             match blast_radius(&repo, &path, 15) {
                 Ok(b) => {
                     let body = serde_json::to_string_pretty(&b).unwrap_or_default();
                     let _ = request.respond(respond(200, &body, "application/json"));
                 }
                 Err(e) => {
-                    let _ = request.respond(respond(400, &json!({"error": e}).to_string(), "application/json"));
+                    let _ = request.respond(respond(
+                        400,
+                        &json!({"error": e}).to_string(),
+                        "application/json",
+                    ));
                 }
             }
             continue;
         }
 
         if url.starts_with("/api/blame") {
-            let path = query_param(&url, "path").unwrap_or_else(|| "README.md".into());
+            let path = path_q.unwrap_or_else(|| "README.md".into());
+            let repo = state.lock().unwrap();
             match file_blame(&repo, &path, 40) {
                 Ok(b) => {
                     let body = serde_json::to_string_pretty(&b).unwrap_or_default();
                     let _ = request.respond(respond(200, &body, "application/json"));
                 }
                 Err(e) => {
-                    let _ = request.respond(respond(400, &json!({"error": e}).to_string(), "application/json"));
+                    let _ = request.respond(respond(
+                        400,
+                        &json!({"error": e}).to_string(),
+                        "application/json",
+                    ));
+                }
+            }
+            continue;
+        }
+
+        if url.starts_with("/api/hotspots") {
+            let repo = state.lock().unwrap();
+            match file_hotspots(&repo, "180 days ago", 20) {
+                Ok(h) => {
+                    let body = serde_json::to_string_pretty(&h).unwrap_or_default();
+                    let _ = request.respond(respond(200, &body, "application/json"));
+                }
+                Err(e) => {
+                    let _ = request.respond(respond(
+                        400,
+                        &json!({"error": e}).to_string(),
+                        "application/json",
+                    ));
+                }
+            }
+            continue;
+        }
+
+        if url.starts_with("/api/stale") {
+            let repo = state.lock().unwrap();
+            match stale_files(&repo, 180, 30) {
+                Ok(s) => {
+                    let body = serde_json::to_string_pretty(&s).unwrap_or_default();
+                    let _ = request.respond(respond(200, &body, "application/json"));
+                }
+                Err(e) => {
+                    let _ = request.respond(respond(
+                        400,
+                        &json!({"error": e}).to_string(),
+                        "application/json",
+                    ));
+                }
+            }
+            continue;
+        }
+
+        if url.starts_with("/api/contributors") {
+            let repo = state.lock().unwrap();
+            match contributors(&repo, "365 days ago", 20) {
+                Ok(c) => {
+                    let body = serde_json::to_string_pretty(&c).unwrap_or_default();
+                    let _ = request.respond(respond(200, &body, "application/json"));
+                }
+                Err(e) => {
+                    let _ = request.respond(respond(
+                        400,
+                        &json!({"error": e}).to_string(),
+                        "application/json",
+                    ));
+                }
+            }
+            continue;
+        }
+
+        if url.starts_with("/api/churn") {
+            let repo = state.lock().unwrap();
+            match commit_churn(&repo, "365 days ago") {
+                Ok(c) => {
+                    let body = serde_json::to_string_pretty(&c).unwrap_or_default();
+                    let _ = request.respond(respond(200, &body, "application/json"));
+                }
+                Err(e) => {
+                    let _ = request.respond(respond(
+                        400,
+                        &json!({"error": e}).to_string(),
+                        "application/json",
+                    ));
                 }
             }
             continue;

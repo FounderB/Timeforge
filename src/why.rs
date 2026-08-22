@@ -134,36 +134,22 @@ fn score_commit(commit: CommitInfo, files: &[String], keyword: Option<&str>) -> 
 pub fn co_changed_files(repo: &Repo, path: &str, limit: usize) -> Result<HashMap<String, u32>, String> {
     let rel = git::rel_path(repo.path(), std::path::Path::new(path))
         .unwrap_or_else(|_| path.replace('\\', "/"));
-    let out = git::git_in(
+
+    let hashes = git::git_in(
         repo.path(),
-        &[
-            "log",
-            "--pretty=format:--",
-            "--name-only",
-            "-n",
-            "60",
-            "--",
-            &rel,
-        ],
+        &["log", "--pretty=format:%H", "-n", "40", "--", &rel],
     )?;
 
     let mut counts: HashMap<String, u32> = HashMap::new();
-    let mut batch: Vec<String> = Vec::new();
-    for line in out.lines() {
-        if line == "--" {
-            for f in &batch {
-                if f != &rel {
-                    *counts.entry(f.clone()).or_insert(0) += 1;
-                }
+    for hash in hashes.lines().filter(|h| !h.is_empty()) {
+        let files = git::git_in(
+            repo.path(),
+            &["diff-tree", "--no-commit-id", "--name-only", "-r", hash],
+        )?;
+        for f in files.lines().filter(|f| !f.is_empty()) {
+            if f != rel {
+                *counts.entry(f.to_string()).or_insert(0) += 1;
             }
-            batch.clear();
-        } else if !line.is_empty() {
-            batch.push(line.to_string());
-        }
-    }
-    for f in &batch {
-        if f != &rel {
-            *counts.entry(f.clone()).or_insert(0) += 1;
         }
     }
 

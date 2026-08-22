@@ -69,5 +69,26 @@ fn blast_finds_cochange() {
     let dir = seed_repo();
     let repo = timeforge::Repo::discover(dir.path()).unwrap();
     let b = timeforge::blast_radius(&repo, "src/auth.rs", 10).unwrap();
-    assert!(b.related.iter().any(|h| h.path.contains("main.rs")) || b.related.is_empty() || !b.related.is_empty());
+    assert!(b.related.iter().any(|h| h.path.contains("main.rs")));
+}
+
+#[test]
+fn parse_github_specs() {
+    let (o, n) = timeforge::remote::parse_github_spec("FounderB/SignShield").unwrap();
+    assert_eq!(o, "FounderB");
+    assert_eq!(n, "SignShield");
+    let (o, n) =
+        timeforge::remote::parse_github_spec("https://github.com/rust-lang/mdBook.git").unwrap();
+    assert_eq!(o, "rust-lang");
+    assert_eq!(n, "mdBook");
+}
+
+#[test]
+fn hotspots_and_contributors() {
+    let dir = seed_repo();
+    let repo = timeforge::Repo::discover(dir.path()).unwrap();
+    let h = timeforge::file_hotspots(&repo, "10 years ago", 10).unwrap();
+    assert!(!h.hotspots.is_empty());
+    let c = timeforge::contributors(&repo, "10 years ago", 5).unwrap();
+    assert_eq!(c.contributors[0].author, "Dev");
 }

@@ -1,9 +1,13 @@
 use colored::Colorize;
 use comfy_table::{presets::UTF8_FULL, Table};
 
+use crate::activity::{ChurnReport, ContributorsReport};
 use crate::blast::BlastReport;
 use crate::blame::BlameReport;
 use crate::heatmap::Heatmap;
+use crate::hotspots::HotspotsReport;
+use crate::remote::CachedRepo;
+use crate::stale::StaleReport;
 use crate::timeline::Timeline;
 use crate::why::WhyReport;
 
@@ -127,6 +131,95 @@ pub fn print_blast(b: &BlastReport) {
             truncate(&h.path, 40),
             bar.dimmed()
         );
+    }
+    println!();
+}
+
+pub fn print_hotspots(h: &HotspotsReport) {
+    banner();
+    println!("{}  since {}\n", "HOTSPOTS".bold().yellow(), h.since.cyan());
+    for (i, s) in h.hotspots.iter().enumerate() {
+        println!(
+            "  {:>2}. score {:>3}  {:>3} commits  {:>2} authors  {}",
+            i + 1,
+            s.score.to_string().red(),
+            s.commits,
+            s.authors,
+            s.path
+        );
+    }
+    println!();
+}
+
+pub fn print_stale(s: &StaleReport) {
+    banner();
+    println!(
+        "{}  older than {} days\n",
+        "STALE FILES".bold().magenta(),
+        s.older_than_days
+    );
+    for f in &s.files {
+        println!(
+            "  {:>4}d  {}  {}  {}",
+            f.age_days.to_string().yellow(),
+            f.last_date.dimmed(),
+            f.last_author.cyan(),
+            f.path
+        );
+    }
+    println!();
+}
+
+pub fn print_contributors(c: &ContributorsReport) {
+    banner();
+    println!(
+        "{}  {} commits since {}\n",
+        "CONTRIBUTORS".bold().cyan(),
+        c.total_commits,
+        c.since.yellow()
+    );
+    for (i, a) in c.contributors.iter().enumerate() {
+        let bar = "█".repeat((a.percent / 4.0) as usize);
+        println!(
+            "  {:>2}. {:24} {:>5}  {:>5.1}%  {}",
+            i + 1,
+            a.author.cyan(),
+            a.commits,
+            a.percent,
+            bar.dimmed()
+        );
+    }
+    println!();
+}
+
+pub fn print_churn(c: &ChurnReport) {
+    banner();
+    println!("{}  since {}\n", "COMMIT CHURN".bold().cyan(), c.since.yellow());
+    let max = c.buckets.iter().map(|b| b.commits).max().unwrap_or(1).max(1);
+    for b in &c.buckets {
+        let w = ((b.commits as f64 / max as f64) * 24.0) as usize;
+        println!(
+            "  {}  {:>4}  {}",
+            b.week,
+            b.commits,
+            "▓".repeat(w).dimmed()
+        );
+    }
+    println!();
+}
+
+pub fn print_cached(list: &[CachedRepo]) {
+    banner();
+    println!("{}\n", "CACHED REMOTE REPOS".bold().cyan());
+    if list.is_empty() {
+        println!("  (empty) — try: timeforge open rust-lang/mdBook\n");
+        return;
+    }
+    for r in list {
+        println!("  {}  {}", r.id.green(), r.path.dimmed());
+        if let Some(remote) = &r.remote {
+            println!("      {}", remote.dimmed());
+        }
     }
     println!();
 }
