@@ -21,38 +21,65 @@ pub struct ArchaeologyReport {
 
 /// When did a code pattern first appear / keep changing? (`git log -S` pickaxe).
 pub fn dig_pattern(repo: &Repo, pattern: &str, limit: usize) -> Result<ArchaeologyReport, String> {
+    dig_pattern_ex(repo, pattern, limit, None, false)
+}
+
+/// Fast dig: optional path scope; skip slow `-G` fallback when `fast`.
+pub fn dig_pattern_ex(
+    repo: &Repo,
+    pattern: &str,
+    limit: usize,
+    path: Option<&str>,
+    fast: bool,
+) -> Result<ArchaeologyReport, String> {
     let pat = pattern.trim();
     if pat.len() < 2 {
         return Err("pattern too short — try at least 2 characters".into());
     }
 
-    // Prefer pickaxe (-S); fall back to regex (-G) for short tokens.
-    let out = git::git_in(
-        repo.path(),
-        &[
-            "log",
-            "-S",
-            pat,
-            &format!("--pretty=format:{PRETTY_COMMIT}"),
-            "--date=short",
-            &format!("-n{}", limit.max(5)),
-            "--name-only",
-        ],
-    )
-    .or_else(|_| {
-        git::git_in(
-            repo.path(),
-            &[
-                "log",
-                "-G",
-                &regex_escape(pat),
-                &format!("--pretty=format:{PRETTY_COMMIT}"),
-                "--date=short",
-                &format!("-n{}", limit.max(5)),
-                "--name-only",
-            ],
-        )
-    })?;
+    let n = if fast {
+        limit.clamp(3, 8)
+    } else {
+        limit.max(5)
+    };
+    let mut args = vec![
+        "log".into(),
+        "-S".into(),
+        pat.to_string(),
+        format!("--pretty=format:{PRETTY_COMMIT}"),
+        "--date=short".into(),
+        format!("-n{n}"),
+        "--name-only".into(),
+    ];
+    if let Some(p) = path.filter(|s| !s.is_empty()) {
+        args.push("--".into());
+        args.push(p.to_string());
+    }
+    let refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+    let out = match git::git_in(repo.path(), &refs) {
+        Ok(s) if !s.trim().is_empty() => s,
+        Ok(s) if fast => s,
+        Ok(_) | Err(_) if !fast => {
+            let mut gargs = vec![
+                "log".into(),
+                "-G".into(),
+                regex_escape(pat),
+                format!("--pretty=format:{PRETTY_COMMIT}"),
+                "--date=short".into(),
+                format!("-n{n}"),
+                "--name-only".into(),
+            ];
+            if let Some(p) = path.filter(|s| !s.is_empty()) {
+                gargs.push("--".into());
+                gargs.push(p.to_string());
+            }
+            let greps: Vec<&str> = gargs.iter().map(|s| s.as_str()).collect();
+            git::git_in(repo.path(), &greps).unwrap_or_default()
+        }
+        Ok(s) => s,
+        Err(_) if fast => String::new(),
+        Err(e) => return Err(e),
+    };
 
     let events: Vec<DigEvent> = git::parse_name_only_log(&out)
         .into_iter()

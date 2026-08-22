@@ -1,3 +1,11 @@
+## 0.6.0 — Story Ask + speed
+
+- Parse Ask into path / `file:line` / `::symbol` / dig needle / PR (`parsed` on report)
+- Path-scoped dig + blame; stack-like queries drive the hunt
+- Speed: skip pairs for pure code tokens; skip `-G` fallback in fast dig; tighter fix↔break
+- PR answers include later-touch hits + “After this PR” drill-down
+- Golden calibration tests (local fixtures + optional cached remotes)
+
 ## 0.5.4 — Calibration pass
 
 - CLI: `--json` after ask query no longer swallowed into the question

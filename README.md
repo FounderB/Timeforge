@@ -64,16 +64,13 @@ cd Timeforge && cargo build --release
 
 ---
 
-## Ask mode (v0.5.3)
+## Ask mode (v0.6)
 
 ```bash
-timeforge ask promisor              # proven dig / pickaxe when possible
-timeforge "#42"                     # PR fast path
-timeforge dig unsafe                # archaeology: first / last seen
-timeforge pairs                     # fix ↔ break (hunk/-S causality)
-timeforge map src/main.rs           # blame zones
-timeforge update                    # fetch in the same folder
-timeforge repair                    # materialize missing objects in place
+timeforge ask "panic at src/auth.rs:42"   # path + line story
+timeforge ask "foo::bar::baz"             # symbol dig
+timeforge ask PCRE2                       # proven code token
+timeforge "#42"                           # PR + later touches
 ```
 
 Global: `--repo <path|owner/repo|url>` · `--update`

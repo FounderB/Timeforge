@@ -10,6 +10,7 @@ mod heatmap;
 mod hotspots;
 mod hunt;
 mod pr;
+pub mod query;
 pub mod remote;
 pub mod report;
 mod stale;
@@ -19,16 +20,17 @@ mod why;
 pub mod web;
 
 pub use activity::{commit_churn, contributors};
-pub use archaeology::dig_pattern;
+pub use archaeology::{dig_pattern, dig_pattern_ex};
 pub use blame::file_blame;
 pub use blame_map::blame_map;
 pub use blast::blast_radius;
-pub use fixbreak::fix_break_pairs;
+pub use fixbreak::{fix_break_pairs, fix_break_pairs_ex};
 pub use ghosts::ghost_authors;
 pub use heatmap::ownership_heatmap;
 pub use hotspots::file_hotspots;
 pub use hunt::{bug_hunt, bug_hunt_ex, regression_radar};
 pub use pr::pr_travel;
+pub use query::parse_ask;
 pub use remote::{
     list_cached, open_github, repair_cache, repair_current, resolve_repo, update_repo,
 };

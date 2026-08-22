@@ -24,6 +24,16 @@ pub struct FixBreakReport {
 ///
 /// Causality: extract removed hunks from the fix → `git log -S` for when that text appeared.
 pub fn fix_break_pairs(repo: &Repo, since: &str, limit: usize) -> Result<FixBreakReport, String> {
+    fix_break_pairs_ex(repo, since, limit, false)
+}
+
+pub fn fix_break_pairs_ex(
+    repo: &Repo,
+    since: &str,
+    limit: usize,
+    fast: bool,
+) -> Result<FixBreakReport, String> {
+    let scan = if fast { 16 } else { 40 };
     let out = git::git_in(
         repo.path(),
         &[
@@ -36,7 +46,7 @@ pub fn fix_break_pairs(repo: &Repo, since: &str, limit: usize) -> Result<FixBrea
             "--grep",
             "fix|bug|hotfix|revert|regress|patch",
             "-n",
-            "40",
+            &scan.to_string(),
             "--name-only",
         ],
     )?;
@@ -51,7 +61,11 @@ pub fn fix_break_pairs(repo: &Repo, since: &str, limit: usize) -> Result<FixBrea
         if pairs.len() >= limit {
             break;
         }
-        let pair = resolve_break(repo, &fix, &touched);
+        let pair = resolve_break(repo, &fix, &touched, fast);
+        // In fast mode skip weak cochange noise
+        if fast && (pair.method == "cochange" || pair.method == "none") {
+            continue;
+        }
         pairs.push(pair);
     }
 
@@ -73,9 +87,9 @@ pub fn fix_break_pairs(repo: &Repo, since: &str, limit: usize) -> Result<FixBrea
     Ok(FixBreakReport { pairs, summary })
 }
 
-fn resolve_break(repo: &Repo, fix: &CommitInfo, touched: &[String]) -> FixBreakPair {
+fn resolve_break(repo: &Repo, fix: &CommitInfo, touched: &[String], fast: bool) -> FixBreakPair {
     // 1) Pickaxe on removed hunk text
-    if let Some((brk, files, needle)) = pickaxe_introducer(repo, &fix.hash) {
+    if let Some((brk, files, needle)) = pickaxe_introducer(repo, &fix.hash, fast) {
         return FixBreakPair {
             fix: fix.clone(),
             break_commit: Some(brk),
@@ -95,6 +109,17 @@ fn resolve_break(repo: &Repo, fix: &CommitInfo, touched: &[String]) -> FixBreakP
             confidence: 70,
             note: "blame on pre-fix lines points at this commit".into(),
             method: "blame".into(),
+        };
+    }
+
+    if fast {
+        return FixBreakPair {
+            fix: fix.clone(),
+            break_commit: None,
+            shared_files: touched.iter().take(8).cloned().collect(),
+            confidence: 15,
+            note: "fix found; could not attribute introducer".into(),
+            method: "none".into(),
         };
     }
 
@@ -123,14 +148,16 @@ fn resolve_break(repo: &Repo, fix: &CommitInfo, touched: &[String]) -> FixBreakP
 fn pickaxe_introducer(
     repo: &Repo,
     fix_hash: &str,
+    fast: bool,
 ) -> Option<(CommitInfo, Vec<String>, String)> {
     let diff = git::git_in(
         repo.path(),
         &["show", "--format=", "--unified=0", fix_hash],
     )
     .ok()?;
+    let needle_cap = if fast { 3 } else { 6 };
     let needles = extract_removed_needles(&diff);
-    for needle in needles.into_iter().take(6) {
+    for needle in needles.into_iter().take(needle_cap) {
         let range = format!("{fix_hash}^");
         let log = git::git_in(
             repo.path(),
