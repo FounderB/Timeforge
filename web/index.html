@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Timeforge — Repo Time Machine</title>
+<style>
+:root{--bg:#070b10;--panel:#0d1520;--line:#1c2e3f;--text:#e8f2f7;--muted:#6d8798;--accent:#5eead4;--accent2:#38bdf8;--warn:#fbbf24;--bad:#fb7185}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Segoe UI",system-ui,sans-serif;background:radial-gradient(1200px 600px at 10% -10%,#122033 0%,var(--bg) 55%);color:var(--text);min-height:100vh}
+.wrap{max-width:1060px;margin:0 auto;padding:1.5rem}
+.hero{display:flex;align-items:center;gap:1rem;margin-bottom:1.25rem}
+.logo{width:52px;height:52px;border-radius:14px;background:linear-gradient(145deg,var(--accent),var(--accent2));box-shadow:0 8px 28px rgba(56,189,248,.35)}
+h1{font-size:1.7rem;letter-spacing:-.03em}
+.tag{color:var(--muted);font-size:.85rem;margin-top:.2rem}
+.tabs{display:flex;gap:.4rem;margin-bottom:1rem;flex-wrap:wrap}
+.tab{border:1px solid var(--line);background:transparent;color:var(--muted);padding:.45rem .9rem;border-radius:999px;cursor:pointer;font-size:.78rem;font-weight:600}
+.tab.active{color:#062018;background:linear-gradient(135deg,var(--accent),var(--accent2));border-color:transparent}
+.grid{display:grid;grid-template-columns:340px 1fr;gap:1rem}
+@media(max-width:860px){.grid{grid-template-columns:1fr}}
+.panel{background:rgba(13,21,32,.9);border:1px solid var(--line);border-radius:16px;padding:1rem;backdrop-filter:blur(8px)}
+.panel h2{font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:.7rem}
+label{display:block;font-size:.72rem;color:var(--muted);margin:.55rem 0 .3rem}
+input{width:100%;background:#081018;border:1px solid var(--line);border-radius:10px;color:var(--text);padding:.55rem .7rem;font-size:.8rem}
+button.primary{margin-top:.85rem;width:100%;border:none;border-radius:10px;padding:.7rem;font-weight:700;cursor:pointer;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#062018}
+.meta{font-size:.78rem;color:var(--muted);margin-bottom:.8rem}
+.event{padding:.65rem 0;border-bottom:1px dashed #1a2a38}
+.event:last-child{border:none}
+.event .h{font-family:ui-monospace,monospace;color:var(--accent);font-size:.75rem}
+.event .s{font-size:.82rem;margin-top:.2rem}
+.bar{height:8px;border-radius:99px;background:#13202c;overflow:hidden;margin-top:.35rem}
+.bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.owner{display:flex;justify-content:space-between;gap:.5rem;font-size:.8rem;padding:.4rem 0}
+.warn{margin-top:.8rem;padding:.65rem .75rem;border-radius:10px;border:1px solid #fbbf2444;background:#fbbf2411;color:var(--warn);font-size:.78rem}
+.empty{color:var(--muted);font-size:.82rem;padding:.5rem 0}
+.score{display:inline-block;min-width:2.2rem;text-align:center;padding:.1rem .35rem;border-radius:6px;background:#fb718522;color:var(--bad);font-weight:700;font-size:.75rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <div class="logo"></div>
+    <div>
+      <h1>Timeforge</h1>
+      <div class="tag">Repo Time Machine · who changed it · why it broke · FounderB</div>
+    </div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" data-v="timeline">Time Machine</button>
+    <button class="tab" data-v="why">Why broke</button>
+    <button class="tab" data-v="heatmap">Heatmap</button>
+    <button class="tab" data-v="blast">Blast radius</button>
+  </div>
+  <div class="grid">
+    <section class="panel">
+      <h2>Controls</h2>
+      <div class="meta" id="repoInfo">Loading repo…</div>
+      <label>File path</label>
+      <input id="path" value="README.md"/>
+      <label>Keyword (why)</label>
+      <input id="query" placeholder="auth, test_login, panic…"/>
+      <button class="primary" id="run">Run</button>
+    </section>
+    <section class="panel">
+      <h2 id="outTitle">Timeline</h2>
+      <div id="out" class="empty">Pick a view and hit Run</div>
+    </section>
+  </div>
+</div>
+<script>
+let view='timeline';
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active'); view=t.dataset.v;
+  document.getElementById('outTitle').textContent={timeline:'Timeline',why:'Suspects',heatmap:'Ownership',blast:'Co-changes'}[view];
+});
+async function info(){
+  const d=await fetch('/api/info').then(r=>r.json());
+  document.getElementById('repoInfo').textContent=d.repo+' · v'+d.version;
+}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+async function run(){
+  const path=encodeURIComponent(document.getElementById('path').value.trim()||'README.md');
+  const q=encodeURIComponent(document.getElementById('query').value.trim());
+  const out=document.getElementById('out');
+  out.innerHTML='<div class="empty">Loading…</div>';
+  try{
+    if(view==='timeline'){
+      const d=await fetch('/api/timeline?path='+path).then(r=>r.json());
+      if(d.error) throw new Error(d.error);
+      out.innerHTML=`<div class="meta">${esc(d.path)} · ${d.total_commits} commits · ${esc(d.first_author)} → ${esc(d.last_author)}</div>`+
+        d.events.map(e=>`<div class="event"><div class="h">${esc(e.commit.short)} · ${esc(e.commit.date)} · ${esc(e.commit.author)}${e.pr_hint?' · '+esc(e.pr_hint):''} · +${e.insertions}/-${e.deletions}</div><div class="s">${esc(e.commit.subject)}</div></div>`).join('');
+    } else if(view==='why'){
+      const d=await fetch('/api/why?path='+path+'&q='+q).then(r=>r.json());
+      if(d.error) throw new Error(d.error);
+      out.innerHTML=d.suspects.map(s=>`<div class="event"><div class="h"><span class="score">${s.score}</span> ${esc(s.commit.short)} · ${esc(s.commit.date)} · ${esc(s.commit.author)}</div><div class="s">${esc(s.commit.subject)}</div><div class="meta">${esc((s.reasons||[]).join(' · '))}</div></div>`).join('')||'<div class="empty">No suspects</div>';
+    } else if(view==='heatmap'){
+      const d=await fetch('/api/heatmap').then(r=>r.json());
+      if(d.error) throw new Error(d.error);
+      const max=Math.max(...d.owners.map(o=>o.commits),1);
+      out.innerHTML=`<div class="meta">since ${esc(d.since)} · bus factor ~${d.bus_factor}</div>`+
+        (d.warning?`<div class="warn">${esc(d.warning)}</div>`:'')+
+        d.owners.map(o=>`<div class="owner"><span>${esc(o.author)}</span><span>${o.commits} commits · ${o.files} files</span></div><div class="bar"><i style="width:${(o.commits/max)*100}%"></i></div>`).join('');
+    } else {
+      const d=await fetch('/api/blast?path='+path).then(r=>r.json());
+      if(d.error) throw new Error(d.error);
+      out.innerHTML=`<div class="meta">${esc(d.summary)}</div>`+
+        (d.related||[]).map(h=>`<div class="owner"><span>${esc(h.path)}</span><span>${h.co_changes}×</span></div><div class="bar"><i style="width:${h.affinity*100}%"></i></div>`).join('')||'<div class="empty">No co-changes</div>';
+    }
+  }catch(e){out.innerHTML='<div class="empty">'+esc(e.message||e)+'</div>';}
+}
+document.getElementById('run').onclick=run;
+info().then(run);
+</script>
+</body>
+</html>
