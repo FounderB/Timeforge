@@ -1,3 +1,11 @@
+## 0.3.0 — Blame Map · PR Travel · Ghosts
+
+- **Blame Map** (`map` / `/api/map`) — ownership zones + color strip
+- **PR Time Travel** (`pr #N`) — files in a PR + later touches on same paths
+- **Ghost authors** (`ghosts`) — silent owners + path bus-factor risks
+- Timeline is rename-aware (`git log --follow`)
+- Tree shows churn sparks; pins + keyboard (`j/k`, `b`, `p`, `g`) + deep links
+
 ## 0.2.1 — File explorer + promisor fix
 
 - Web UI: file tree with icons, breadcrumbs, click folders/files

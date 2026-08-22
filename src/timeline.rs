@@ -28,11 +28,12 @@ pub fn file_timeline(repo: &Repo, path: &str, limit: usize) -> Result<Timeline, 
     };
 
     let fmt = "%H|%an|%ae|%ad|%s";
-    // Prefer numstat; fall back if promisor/offline clone can't fetch blobs.
+    // Prefer numstat + rename follow; fall back if promisor/offline clone can't fetch blobs.
     let with_stat = git::git_in(
         repo.path(),
         &[
             "log",
+            "--follow",
             &format!("--pretty=format:{fmt}"),
             "--date=short",
             &format!("-n{limit}"),
@@ -47,13 +48,27 @@ pub fn file_timeline(repo: &Repo, path: &str, limit: usize) -> Result<Timeline, 
             repo.path(),
             &[
                 "log",
+                "--follow",
                 &format!("--pretty=format:{fmt}"),
                 "--date=short",
                 &format!("-n{limit}"),
                 "--",
                 &rel,
             ],
-        )?,
+        )
+        .or_else(|_| {
+            git::git_in(
+                repo.path(),
+                &[
+                    "log",
+                    &format!("--pretty=format:{fmt}"),
+                    "--date=short",
+                    &format!("-n{limit}"),
+                    "--",
+                    &rel,
+                ],
+            )
+        })?,
     };
 
     let mut events = Vec::new();

@@ -5,9 +5,9 @@ use serde_json::json;
 use tiny_http::{Header, Method, Response, Server};
 
 use crate::{
-    blast_radius, commit_churn, contributors, file_blame, file_hotspots, file_timeline,
-    list_cached, list_tree, open_github, ownership_heatmap, remote, repair_cache, stale_files,
-    why_broke, Repo,
+    blame_map, blast_radius, commit_churn, contributors, file_blame, file_hotspots, file_timeline,
+    ghost_authors, list_cached, list_tree_ex, open_github, ownership_heatmap, pr_travel, remote,
+    repair_cache, stale_files, why_broke, Repo,
 };
 
 const INDEX: &str = include_str!("../../web/index.html");
@@ -133,11 +133,70 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
         let q = query_param(&url, "q");
 
         if url.starts_with("/api/tree") {
-            let dir = path_q.unwrap_or_default();
+            let dir = path_q.clone().unwrap_or_default();
+            let with_churn = query_param(&url, "churn")
+                .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+                .unwrap_or(true);
             let repo = state.lock().unwrap();
-            match list_tree(&repo, &dir) {
+            match list_tree_ex(&repo, &dir, with_churn) {
                 Ok(t) => {
                     let body = serde_json::to_string_pretty(&t).unwrap_or_default();
+                    let _ = request.respond(respond(200, &body, "application/json"));
+                }
+                Err(e) => {
+                    let _ = request.respond(respond(
+                        400,
+                        &json!({"error": e}).to_string(),
+                        "application/json",
+                    ));
+                }
+            }
+            continue;
+        }
+
+        if url.starts_with("/api/map") {
+            let path = path_q.clone().unwrap_or_else(|| "README.md".into());
+            let repo = state.lock().unwrap();
+            match blame_map(&repo, &path) {
+                Ok(m) => {
+                    let body = serde_json::to_string_pretty(&m).unwrap_or_default();
+                    let _ = request.respond(respond(200, &body, "application/json"));
+                }
+                Err(e) => {
+                    let _ = request.respond(respond(
+                        400,
+                        &json!({"error": e}).to_string(),
+                        "application/json",
+                    ));
+                }
+            }
+            continue;
+        }
+
+        if url.starts_with("/api/pr") {
+            let prq = q.clone().or_else(|| query_param(&url, "pr")).unwrap_or_default();
+            let repo = state.lock().unwrap();
+            match pr_travel(&repo, &prq, 12) {
+                Ok(p) => {
+                    let body = serde_json::to_string_pretty(&p).unwrap_or_default();
+                    let _ = request.respond(respond(200, &body, "application/json"));
+                }
+                Err(e) => {
+                    let _ = request.respond(respond(
+                        400,
+                        &json!({"error": e}).to_string(),
+                        "application/json",
+                    ));
+                }
+            }
+            continue;
+        }
+
+        if url.starts_with("/api/ghosts") {
+            let repo = state.lock().unwrap();
+            match ghost_authors(&repo, 180, 20) {
+                Ok(g) => {
+                    let body = serde_json::to_string_pretty(&g).unwrap_or_default();
                     let _ = request.respond(respond(200, &body, "application/json"));
                 }
                 Err(e) => {

@@ -1,9 +1,12 @@
 mod activity;
-mod blast;
 mod blame;
+mod blame_map;
+mod blast;
+mod ghosts;
 mod git;
 mod heatmap;
 mod hotspots;
+mod pr;
 pub mod remote;
 pub mod report;
 mod stale;
@@ -13,14 +16,17 @@ mod why;
 pub mod web;
 
 pub use activity::{commit_churn, contributors};
-pub use blast::blast_radius;
 pub use blame::file_blame;
+pub use blame_map::blame_map;
+pub use blast::blast_radius;
+pub use ghosts::ghost_authors;
 pub use heatmap::ownership_heatmap;
 pub use hotspots::file_hotspots;
+pub use pr::pr_travel;
 pub use remote::{list_cached, open_github, repair_cache, resolve_repo};
 pub use stale::stale_files;
 pub use timeline::file_timeline;
-pub use tree::list_tree;
+pub use tree::{list_tree, list_tree_ex};
 pub use why::why_broke;
 
 use std::path::{Path, PathBuf};

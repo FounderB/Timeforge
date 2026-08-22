@@ -2,10 +2,13 @@ use colored::Colorize;
 use comfy_table::{presets::UTF8_FULL, Table};
 
 use crate::activity::{ChurnReport, ContributorsReport};
-use crate::blast::BlastReport;
 use crate::blame::BlameReport;
+use crate::blame_map::BlameMap;
+use crate::blast::BlastReport;
+use crate::ghosts::GhostReport;
 use crate::heatmap::Heatmap;
 use crate::hotspots::HotspotsReport;
+use crate::pr::PrTravel;
 use crate::remote::CachedRepo;
 use crate::stale::StaleReport;
 use crate::timeline::Timeline;
@@ -64,6 +67,94 @@ pub fn print_blame(b: &BlameReport) {
             l.author.cyan(),
             truncate(&l.content, 60)
         );
+    }
+    println!();
+}
+
+pub fn print_blame_map(m: &BlameMap) {
+    banner();
+    println!("{}  {}\n", "BLAME MAP".bold().cyan(), m.path.yellow());
+    println!("  {}\n", m.summary.dimmed());
+    let total = m.total_lines.max(1) as f64;
+    for b in &m.blocks {
+        let w = ((b.lines as f64 / total) * 28.0).round().max(1.0) as usize;
+        println!(
+            "  L{:>4}-L{:<4} {:16} {}  {}",
+            b.start,
+            b.end,
+            b.author.cyan(),
+            "█".repeat(w).green(),
+            b.hash.dimmed()
+        );
+        println!("           {}", truncate(&b.preview, 70).dimmed());
+    }
+    println!();
+}
+
+pub fn print_pr(p: &PrTravel) {
+    banner();
+    println!(
+        "{}  {}\n",
+        "PR TIME TRAVEL".bold().magenta(),
+        p.pr.as_deref().unwrap_or(&p.query).yellow()
+    );
+    println!("  {}\n", p.summary);
+    println!(
+        "  {} {} {} — {}",
+        p.commit.short.green(),
+        p.commit.date.dimmed(),
+        p.commit.author.cyan(),
+        p.commit.subject
+    );
+    println!("\n{}", "FILES".bold().underline());
+    for f in p.files.iter().take(20) {
+        println!(
+            "  +{:<4} -{:<4}  {}",
+            f.insertions, f.deletions, f.path
+        );
+    }
+    if !p.later.is_empty() {
+        println!("\n{}", "LATER TOUCHES".bold().underline());
+        for l in &p.later {
+            println!(
+                "  {} {}  {}  {}",
+                l.commit.short.green(),
+                l.commit.date.dimmed(),
+                l.path.yellow(),
+                truncate(&l.commit.subject, 50)
+            );
+        }
+    }
+    println!();
+}
+
+pub fn print_ghosts(g: &GhostReport) {
+    banner();
+    println!("{}\n  {}\n", "GHOST AUTHORS".bold().red(), g.summary.dimmed());
+    for a in &g.ghosts {
+        println!(
+            "  [{:^6}] {:20} silent {}d · last {} · {} files",
+            a.risk.yellow(),
+            a.author.cyan(),
+            a.days_silent,
+            a.last_commit.dimmed(),
+            a.owned_files
+        );
+        if !a.sample_paths.is_empty() {
+            println!("           {}", a.sample_paths.join(", ").dimmed());
+        }
+    }
+    if !g.path_risks.is_empty() {
+        println!("\n{}", "PATH BUS FACTOR".bold().underline());
+        for p in g.path_risks.iter().take(15) {
+            println!(
+                "  bus~{}  {:>5.0}% {:16}  {}",
+                p.bus_factor,
+                p.top_percent,
+                p.top_author.cyan(),
+                p.path
+            );
+        }
     }
     println!();
 }

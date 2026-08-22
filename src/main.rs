@@ -2,9 +2,9 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 use timeforge::{
-    blast_radius, commit_churn, contributors, file_blame, file_hotspots, file_timeline,
-    list_cached, list_tree, open_github, ownership_heatmap, remote, repair_cache, report,
-    resolve_repo, stale_files, why_broke,
+    blame_map, blast_radius, commit_churn, contributors, file_blame, file_hotspots, file_timeline,
+    ghost_authors, list_cached, list_tree, open_github, ownership_heatmap, pr_travel, remote,
+    repair_cache, report, resolve_repo, stale_files, why_broke,
 };
 
 #[derive(Parser)]
@@ -31,7 +31,6 @@ struct Cli {
 enum Commands {
     /// Open / cache a GitHub repo (owner/repo or URL)
     Open {
-        /// e.g. FounderB/SignShield or https://github.com/rust-lang/mdBook
         spec: String,
         #[arg(long, help = "git fetch even if already cached")]
         update: bool,
@@ -47,7 +46,7 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
-    /// Time Machine — commit history for a file
+    /// Time Machine — commit history for a file (rename-aware)
     Timeline {
         path: PathBuf,
         #[arg(long, default_value_t = 30)]
@@ -60,6 +59,30 @@ enum Commands {
         path: PathBuf,
         #[arg(long, default_value_t = 40)]
         lines: usize,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Blame Map — ownership zones across a file
+    Map {
+        path: PathBuf,
+        #[arg(long)]
+        json: bool,
+    },
+    /// PR Time Travel — files + later churn for #N
+    Pr {
+        /// PR number: 12, #12, or pull/12
+        query: String,
+        #[arg(long, default_value_t = 12)]
+        later: usize,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Ghost authors + path bus-factor risks
+    Ghosts {
+        #[arg(long, default_value_t = 180)]
+        days: i64,
+        #[arg(long, default_value_t = 20)]
+        limit: usize,
         #[arg(long)]
         json: bool,
     },
@@ -180,14 +203,11 @@ fn run() -> Result<(), String> {
         _ => {}
     }
 
-    let spec = cli
-        .repo
-        .clone()
-        .unwrap_or_else(|| {
-            std::env::current_dir()
-                .map(|p| p.display().to_string())
-                .unwrap_or_else(|_| ".".into())
-        });
+    let spec = cli.repo.clone().unwrap_or_else(|| {
+        std::env::current_dir()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|_| ".".into())
+    });
 
     let repo = if remote::is_remote_spec(&spec) {
         let (owner, name) = remote::parse_github_spec(&spec)?;
@@ -212,6 +232,30 @@ fn run() -> Result<(), String> {
                 report::print_json(&b);
             } else {
                 report::print_blame(&b);
+            }
+        }
+        Commands::Map { path, json } => {
+            let m = blame_map(&repo, &path.to_string_lossy())?;
+            if json {
+                report::print_json(&m);
+            } else {
+                report::print_blame_map(&m);
+            }
+        }
+        Commands::Pr { query, later, json } => {
+            let p = pr_travel(&repo, &query, later)?;
+            if json {
+                report::print_json(&p);
+            } else {
+                report::print_pr(&p);
+            }
+        }
+        Commands::Ghosts { days, limit, json } => {
+            let g = ghost_authors(&repo, days, limit)?;
+            if json {
+                report::print_json(&g);
+            } else {
+                report::print_ghosts(&g);
             }
         }
         Commands::Why {
@@ -283,7 +327,11 @@ fn run() -> Result<(), String> {
             if json {
                 report::print_json(&t);
             } else {
-                let here = if t.path.is_empty() { "/" } else { t.path.as_str() };
+                let here = if t.path.is_empty() {
+                    "/"
+                } else {
+                    t.path.as_str()
+                };
                 println!("tree  {here}");
                 for e in &t.entries {
                     let mark = if e.kind == "tree" { "/" } else { "" };

@@ -5,6 +5,12 @@ fn git(cwd: &std::path::Path, args: &[&str]) {
     let st = Command::new("git")
         .args(args)
         .current_dir(cwd)
+        .env("GIT_AUTHOR_NAME", "Dev")
+        .env("GIT_AUTHOR_EMAIL", "dev@example.com")
+        .env("GIT_COMMITTER_NAME", "Dev")
+        .env("GIT_COMMITTER_EMAIL", "dev@example.com")
+        .env_remove("GIT_AUTHOR_DATE")
+        .env_remove("GIT_COMMITTER_DATE")
         .status()
         .unwrap();
     assert!(st.success(), "git {:?} failed", args);
@@ -103,4 +109,31 @@ fn tree_lists_dirs_and_files() {
     let src = timeforge::list_tree(&repo, "src").unwrap();
     assert!(src.entries.iter().any(|e| e.name == "auth.rs"));
     assert_eq!(src.parent.as_deref(), Some(""));
+}
+
+#[test]
+fn blame_map_has_zones() {
+    let dir = seed_repo();
+    let repo = timeforge::Repo::discover(dir.path()).unwrap();
+    let m = timeforge::blame_map(&repo, "src/auth.rs").unwrap();
+    assert!(!m.blocks.is_empty());
+    assert!(m.total_lines >= 1);
+}
+
+#[test]
+fn pr_travel_finds_hash_mention() {
+    let dir = seed_repo();
+    let repo = timeforge::Repo::discover(dir.path()).unwrap();
+    let p = timeforge::pr_travel(&repo, "12", 5).unwrap();
+    assert!(p.pr.as_deref() == Some("#12"));
+    assert!(!p.files.is_empty());
+}
+
+#[test]
+fn ghosts_runs() {
+    let dir = seed_repo();
+    let repo = timeforge::Repo::discover(dir.path()).unwrap();
+    let g = timeforge::ghost_authors(&repo, 1, 10).unwrap();
+    // Fresh seed repo — author is still "active"; just ensure API works.
+    assert!(g.since_days == 1);
 }

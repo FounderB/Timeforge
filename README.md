@@ -56,22 +56,25 @@ timeforge open owner/repo --repair
 
 ---
 
-## CLI (v0.2.1)
+## CLI (v0.3)
 
 ```bash
 timeforge open <spec> [--update] [--repair|--full]
 timeforge repos
-timeforge tree [path]       # browse with icons
-timeforge timeline <path>
+timeforge tree [path]
+timeforge timeline <path>       # rename-aware
 timeforge blame <path>
+timeforge map <path>            # Blame Map zones
+timeforge pr <N|#N|pull/N>      # PR Time Travel
+timeforge ghosts [--days 180]   # silent owners + bus factor
 timeforge why [--path …] [--query …]
 timeforge heatmap
 timeforge blast <path>
-timeforge hotspots          # highest churn files
-timeforge stale --days 180  # untouched files
+timeforge hotspots
+timeforge stale --days 180
 timeforge contributors
-timeforge churn             # weekly commit chart
-timeforge serve             # UI with file explorer
+timeforge churn
+timeforge serve                 # explorer + map + PR + ghosts
 ```
 
 Global: `--repo <path|owner/repo|url>` · `--update`
@@ -80,15 +83,16 @@ Global: `--repo <path|owner/repo|url>` · `--update`
 
 ## Features
 
-1. **Time Machine** — file history + PR hints  
-2. **Why broke** — ranked culprit commits  
-3. **Heatmap** — ownership / bus factor  
-4. **Blast radius** — co-change affinity  
-5. **Hotspots** — files with most churn  
-6. **Stale** — abandoned paths  
-7. **Contributors** / **Churn** — people & tempo  
-8. **Remote open** — analyze any public GitHub repo  
-9. **File explorer UI** — folders, icons, click-to-analyze  
+1. **Time Machine** — file history + PR hints + rename follow  
+2. **Blame Map** — colored ownership zones  
+3. **PR Time Travel** — what a PR touched + what broke later  
+4. **Ghost authors** — silent owners + path bus-factor  
+5. **Why broke** — ranked culprit commits  
+6. **Heatmap** — ownership / bus factor  
+7. **Blast radius** — co-change affinity  
+8. **Hotspots / Stale / Contributors / Churn**  
+9. **Remote open** — any public GitHub repo  
+10. **File explorer UI** — icons, sparks, pins, keyboard  
 
 
 ## License
