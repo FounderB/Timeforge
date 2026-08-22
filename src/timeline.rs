@@ -28,7 +28,8 @@ pub fn file_timeline(repo: &Repo, path: &str, limit: usize) -> Result<Timeline, 
     };
 
     let fmt = "%H|%an|%ae|%ad|%s";
-    let out = git::git_in(
+    // Prefer numstat; fall back if promisor/offline clone can't fetch blobs.
+    let with_stat = git::git_in(
         repo.path(),
         &[
             "log",
@@ -39,7 +40,21 @@ pub fn file_timeline(repo: &Repo, path: &str, limit: usize) -> Result<Timeline, 
             "--",
             &rel,
         ],
-    )?;
+    );
+    let out = match with_stat {
+        Ok(s) => s,
+        Err(_) => git::git_in(
+            repo.path(),
+            &[
+                "log",
+                &format!("--pretty=format:{fmt}"),
+                "--date=short",
+                &format!("-n{limit}"),
+                "--",
+                &rel,
+            ],
+        )?,
+    };
 
     let mut events = Vec::new();
     let mut current: Option<CommitInfo> = None;

@@ -8,6 +8,7 @@ pub mod remote;
 pub mod report;
 mod stale;
 mod timeline;
+mod tree;
 mod why;
 pub mod web;
 
@@ -16,9 +17,10 @@ pub use blast::blast_radius;
 pub use blame::file_blame;
 pub use heatmap::ownership_heatmap;
 pub use hotspots::file_hotspots;
-pub use remote::{list_cached, open_github, resolve_repo};
+pub use remote::{list_cached, open_github, repair_cache, resolve_repo};
 pub use stale::stale_files;
 pub use timeline::file_timeline;
+pub use tree::list_tree;
 pub use why::why_broke;
 
 use std::path::{Path, PathBuf};

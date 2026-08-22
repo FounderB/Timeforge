@@ -5,28 +5,51 @@
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Timeforge — Repo Time Machine</title>
 <style>
-:root{--bg:#070b10;--panel:#0d1520;--line:#1c2e3f;--text:#e8f2f7;--muted:#6d8798;--accent:#5eead4;--accent2:#38bdf8;--warn:#fbbf24;--bad:#fb7185}
+:root{
+  --bg:#070b10;--panel:#0d1520;--panel2:#0a121b;--line:#1c2e3f;--text:#e8f2f7;
+  --muted:#6d8798;--accent:#5eead4;--accent2:#38bdf8;--warn:#fbbf24;--bad:#fb7185;
+  --hover:#122033;--sel:#0f2a2a;
+}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:"Segoe UI",system-ui,sans-serif;background:radial-gradient(1200px 600px at 10% -10%,#122033 0%,var(--bg) 55%);color:var(--text);min-height:100vh}
-.wrap{max-width:1100px;margin:0 auto;padding:1.5rem}
-.hero{display:flex;align-items:center;gap:1rem;margin-bottom:1rem}
-.logo{width:52px;height:52px;border-radius:14px;background:linear-gradient(145deg,var(--accent),var(--accent2));box-shadow:0 8px 28px rgba(56,189,248,.35)}
-h1{font-size:1.7rem;letter-spacing:-.03em}
-.tag{color:var(--muted);font-size:.85rem;margin-top:.2rem}
-.open-row{display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap}
-.open-row input{flex:1;min-width:220px;background:#081018;border:1px solid var(--line);border-radius:10px;color:var(--text);padding:.6rem .75rem;font-size:.8rem}
-.open-row button{border:none;border-radius:10px;padding:.6rem 1rem;font-weight:700;cursor:pointer;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#062018}
+body{font-family:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;background:radial-gradient(1200px 600px at 10% -10%,#122033 0%,var(--bg) 55%);color:var(--text);min-height:100vh}
+.wrap{max-width:1280px;margin:0 auto;padding:1.25rem 1.5rem 2rem}
+.hero{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1rem;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:1rem}
+.logo{width:48px;height:48px;border-radius:14px;background:linear-gradient(145deg,var(--accent),var(--accent2));box-shadow:0 8px 28px rgba(56,189,248,.35)}
+h1{font-size:1.55rem;letter-spacing:-.03em;font-weight:700}
+.tag{color:var(--muted);font-size:.8rem;margin-top:.15rem}
+.open-row{display:flex;gap:.5rem;margin-bottom:.75rem;flex-wrap:wrap}
+.open-row input{flex:1;min-width:220px;background:#081018;border:1px solid var(--line);border-radius:10px;color:var(--text);padding:.55rem .75rem;font-size:.8rem}
+.open-row button{border:none;border-radius:10px;padding:.55rem .9rem;font-weight:700;cursor:pointer;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#062018;font-size:.8rem}
+.open-row button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.open-row button.ghost:hover{color:var(--text);border-color:var(--accent)}
+.chips{margin-bottom:.9rem;min-height:1.2rem}
+.chip{display:inline-block;margin:.15rem .25rem .15rem 0;padding:.25rem .55rem;border-radius:999px;border:1px solid var(--line);font-size:.68rem;color:var(--muted);cursor:pointer}
+.chip:hover{color:var(--text);border-color:var(--accent)}
 .tabs{display:flex;gap:.35rem;margin-bottom:1rem;flex-wrap:wrap}
 .tab{border:1px solid var(--line);background:transparent;color:var(--muted);padding:.4rem .75rem;border-radius:999px;cursor:pointer;font-size:.72rem;font-weight:600}
 .tab.active{color:#062018;background:linear-gradient(135deg,var(--accent),var(--accent2));border-color:transparent}
-.grid{display:grid;grid-template-columns:300px 1fr;gap:1rem}
-@media(max-width:860px){.grid{grid-template-columns:1fr}}
-.panel{background:rgba(13,21,32,.9);border:1px solid var(--line);border-radius:16px;padding:1rem}
-.panel h2{font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:.7rem}
-label{display:block;font-size:.72rem;color:var(--muted);margin:.55rem 0 .3rem}
-input.ctrl{width:100%;background:#081018;border:1px solid var(--line);border-radius:10px;color:var(--text);padding:.55rem .7rem;font-size:.8rem}
-button.primary{margin-top:.85rem;width:100%;border:none;border-radius:10px;padding:.7rem;font-weight:700;cursor:pointer;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#062018}
-.meta{font-size:.78rem;color:var(--muted);margin-bottom:.8rem;word-break:break-all}
+.layout{display:grid;grid-template-columns:280px 220px 1fr;gap:.85rem;align-items:start}
+@media(max-width:1100px){.layout{grid-template-columns:1fr 1fr}}
+@media(max-width:720px){.layout{grid-template-columns:1fr}}
+.panel{background:rgba(13,21,32,.92);border:1px solid var(--line);border-radius:16px;padding:.9rem;min-height:420px}
+.panel h2{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:.65rem}
+.meta{font-size:.75rem;color:var(--muted);margin-bottom:.65rem;word-break:break-all}
+label{display:block;font-size:.72rem;color:var(--muted);margin:.5rem 0 .25rem}
+input.ctrl{width:100%;background:#081018;border:1px solid var(--line);border-radius:10px;color:var(--text);padding:.5rem .65rem;font-size:.8rem}
+button.primary{margin-top:.75rem;width:100%;border:none;border-radius:10px;padding:.65rem;font-weight:700;cursor:pointer;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#062018}
+.crumb{display:flex;flex-wrap:wrap;gap:.2rem;align-items:center;margin-bottom:.55rem;font-size:.72rem}
+.crumb button{background:transparent;border:none;color:var(--accent2);cursor:pointer;padding:.1rem .25rem;border-radius:4px;font:inherit}
+.crumb button:hover{background:var(--hover)}
+.crumb .sep{color:var(--muted)}
+.tree{max-height:520px;overflow:auto;border:1px solid var(--line);border-radius:12px;background:var(--panel2)}
+.row{display:flex;align-items:center;gap:.45rem;padding:.38rem .55rem;cursor:pointer;font-size:.8rem;border-bottom:1px solid #121c28;user-select:none}
+.row:last-child{border-bottom:none}
+.row:hover{background:var(--hover)}
+.row.active{background:var(--sel);outline:1px solid #1a4a4a}
+.row .ic{width:1.25rem;text-align:center;flex-shrink:0}
+.row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .kd{margin-left:auto;font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
 .event{padding:.55rem 0;border-bottom:1px dashed #1a2a38}
 .event .h{font-family:ui-monospace,monospace;color:var(--accent);font-size:.72rem}
 .event .s{font-size:.8rem;margin-top:.15rem}
@@ -36,24 +59,29 @@ button.primary{margin-top:.85rem;width:100%;border:none;border-radius:10px;paddi
 .warn{margin:.6rem 0;padding:.6rem .7rem;border-radius:10px;border:1px solid #fbbf2444;background:#fbbf2411;color:var(--warn);font-size:.75rem}
 .empty{color:var(--muted);font-size:.82rem;padding:.5rem 0}
 .score{display:inline-block;min-width:2rem;text-align:center;padding:.1rem .3rem;border-radius:6px;background:#fb718522;color:var(--bad);font-weight:700;font-size:.72rem}
-.chip{display:inline-block;margin:.15rem .25rem .15rem 0;padding:.25rem .55rem;border-radius:999px;border:1px solid var(--line);font-size:.68rem;color:var(--muted);cursor:pointer}
-.chip:hover{color:var(--text);border-color:var(--accent)}
+.path-pill{display:inline-flex;align-items:center;gap:.35rem;padding:.2rem .55rem;border-radius:8px;background:#0f1c28;border:1px solid var(--line);font-family:ui-monospace,monospace;font-size:.72rem;color:var(--accent)}
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="hero">
-    <div class="logo"></div>
-    <div>
-      <h1>Timeforge</h1>
-      <div class="tag">Any GitHub repo · time machine · hotspots · FounderB</div>
+    <div class="brand">
+      <div class="logo"></div>
+      <div>
+        <h1>Timeforge</h1>
+        <div class="tag">Repo explorer · time machine · FounderB</div>
+      </div>
     </div>
+    <div class="meta" id="repoInfo" style="margin:0;text-align:right">Loading…</div>
   </div>
+
   <div class="open-row">
     <input id="remoteSpec" placeholder="Open remote: FounderB/SignShield or rust-lang/mdBook"/>
-    <button id="btnOpen">Open repo</button>
+    <button id="btnOpen">Open</button>
+    <button class="ghost" id="btnRepair" title="Re-clone if promisor/offline cache is broken">Repair clone</button>
   </div>
-  <div id="cached" style="margin-bottom:1rem"></div>
+  <div class="chips" id="cached"></div>
+
   <div class="tabs">
     <button class="tab active" data-v="timeline">Time Machine</button>
     <button class="tab" data-v="why">Why broke</button>
@@ -64,54 +92,150 @@ button.primary{margin-top:.85rem;width:100%;border:none;border-radius:10px;paddi
     <button class="tab" data-v="contributors">Contributors</button>
     <button class="tab" data-v="churn">Churn</button>
   </div>
-  <div class="grid">
+
+  <div class="layout">
+    <section class="panel">
+      <h2>Files</h2>
+      <div class="crumb" id="crumb"></div>
+      <div class="tree" id="tree"><div class="empty">Loading tree…</div></div>
+    </section>
+
     <section class="panel">
       <h2>Controls</h2>
-      <div class="meta" id="repoInfo">Loading…</div>
-      <label>File path</label>
+      <label>Selected path</label>
       <input class="ctrl" id="path" value="README.md"/>
       <label>Keyword (why)</label>
       <input class="ctrl" id="query" placeholder="auth, test, panic…"/>
       <button class="primary" id="run">Run</button>
+      <p class="meta" style="margin-top:.85rem">Click a folder to enter · click a file to analyze</p>
     </section>
+
     <section class="panel">
       <h2 id="outTitle">Timeline</h2>
-      <div id="out" class="empty">Pick a view and hit Run</div>
+      <div id="selPath" class="path-pill" style="margin-bottom:.7rem">README.md</div>
+      <div id="out" class="empty">Pick a file and hit Run</div>
     </section>
   </div>
 </div>
 <script>
 let view='timeline';
+let treePath='';
+let selectedPath='README.md';
 const titles={timeline:'Timeline',why:'Suspects',heatmap:'Ownership',blast:'Co-changes',hotspots:'Hotspots',stale:'Stale files',contributors:'Contributors',churn:'Weekly churn'};
+
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
   t.classList.add('active'); view=t.dataset.v;
   document.getElementById('outTitle').textContent=titles[view];
+  run();
 });
+
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+function setSelected(p){
+  selectedPath=p||'';
+  document.getElementById('path').value=selectedPath;
+  document.getElementById('selPath').textContent=selectedPath||'(repo root)';
+}
+
 async function info(){
   const d=await fetch('/api/info').then(r=>r.json());
-  document.getElementById('repoInfo').textContent=d.repo+' · v'+d.version;
+  document.getElementById('repoInfo').textContent=(d.repo||'')+' · v'+(d.version||'');
 }
+
 async function loadCached(){
   const list=await fetch('/api/repos').then(r=>r.json()).catch(()=>[]);
   const el=document.getElementById('cached');
   if(!Array.isArray(list)||!list.length){el.innerHTML='';return;}
-  el.innerHTML=list.map(r=>`<span class="chip" data-spec="${esc((r.remote||r.id).replace('https://github.com/','').replace('.git',''))}">${esc(r.id)}</span>`).join('');
-  el.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{document.getElementById('remoteSpec').value=c.dataset.spec; openRemote();});
+  el.innerHTML=list.map(r=>{
+    const spec=(r.remote||r.id).replace('https://github.com/','').replace(/\.git$/,'');
+    return `<span class="chip" data-spec="${esc(spec)}">${esc(r.id)}</span>`;
+  }).join('');
+  el.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{
+    document.getElementById('remoteSpec').value=c.dataset.spec;
+    openRemote(false);
+  });
 }
-async function openRemote(){
+
+function renderCrumb(path){
+  const el=document.getElementById('crumb');
+  const parts=path?path.split('/').filter(Boolean):[];
+  let html=`<button type="button" data-p="">root</button>`;
+  let acc='';
+  parts.forEach((p,i)=>{
+    acc=acc?acc+'/'+p:p;
+    html+=`<span class="sep">/</span><button type="button" data-p="${esc(acc)}">${esc(p)}</button>`;
+  });
+  el.innerHTML=html;
+  el.querySelectorAll('button').forEach(b=>b.onclick=()=>loadTree(b.dataset.p||''));
+}
+
+async function loadTree(path){
+  treePath=path||'';
+  renderCrumb(treePath);
+  const el=document.getElementById('tree');
+  el.innerHTML='<div class="empty">Loading…</div>';
+  try{
+    const d=await fetch('/api/tree?path='+encodeURIComponent(treePath)).then(r=>r.json());
+    if(d.error) throw new Error(d.error);
+    const rows=[];
+    if(d.parent!==null&&d.parent!==undefined){
+      rows.push(`<div class="row" data-up="1"><span class="ic">⬆️</span><span class="nm">..</span><span class="kd">up</span></div>`);
+    }
+    for(const e of (d.entries||[])){
+      const active=e.path===selectedPath?' active':'';
+      rows.push(`<div class="row${active}" data-kind="${esc(e.kind)}" data-path="${esc(e.path)}"><span class="ic">${e.icon||'📄'}</span><span class="nm">${esc(e.name)}</span><span class="kd">${e.kind==='tree'?'dir':'file'}</span></div>`);
+    }
+    el.innerHTML=rows.join('')||'<div class="empty">Empty folder</div>';
+    el.querySelectorAll('.row').forEach(row=>{
+      row.onclick=()=>{
+        if(row.dataset.up){
+          loadTree(d.parent||'');
+          return;
+        }
+        const kind=row.dataset.kind;
+        const p=row.dataset.path;
+        if(kind==='tree'){
+          loadTree(p);
+        } else {
+          setSelected(p);
+          el.querySelectorAll('.row').forEach(x=>x.classList.remove('active'));
+          row.classList.add('active');
+          if(view==='heatmap'||view==='hotspots'||view==='stale'||view==='contributors'||view==='churn'){
+            view='timeline';
+            document.querySelectorAll('.tab').forEach(t=>{
+              t.classList.toggle('active',t.dataset.v==='timeline');
+            });
+            document.getElementById('outTitle').textContent=titles.timeline;
+          }
+          run();
+        }
+      };
+    });
+  }catch(e){
+    el.innerHTML='<div class="empty">'+esc(e.message||e)+'</div>';
+  }
+}
+
+async function openRemote(repair){
   const spec=document.getElementById('remoteSpec').value.trim();
   if(!spec) return alert('Paste owner/repo');
-  document.getElementById('out').innerHTML='<div class="empty">Cloning / opening '+esc(spec)+'…</div>';
-  const r=await fetch('/api/open',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({spec})});
+  document.getElementById('out').innerHTML='<div class="empty">'+(repair?'Repairing':'Opening')+' '+esc(spec)+'…</div>';
+  const r=await fetch('/api/open',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({spec,repair:!!repair})});
   const d=await r.json();
   if(d.error){alert(d.error);return;}
-  await info(); await loadCached(); await run();
+  treePath='';
+  setSelected('README.md');
+  await info(); await loadCached(); await loadTree(''); await run();
 }
-document.getElementById('btnOpen').onclick=openRemote;
+
+document.getElementById('btnOpen').onclick=()=>openRemote(false);
+document.getElementById('btnRepair').onclick=()=>openRemote(true);
+
 async function run(){
-  const path=encodeURIComponent(document.getElementById('path').value.trim()||'README.md');
+  const pathVal=document.getElementById('path').value.trim();
+  if(pathVal) setSelected(pathVal);
+  const path=encodeURIComponent(selectedPath||'README.md');
   const q=encodeURIComponent(document.getElementById('query').value.trim());
   const out=document.getElementById('out');
   out.innerHTML='<div class="empty">Loading…</div>';
@@ -120,7 +244,7 @@ async function run(){
       const d=await fetch('/api/timeline?path='+path).then(r=>r.json());
       if(d.error) throw new Error(d.error);
       out.innerHTML=`<div class="meta">${esc(d.path)} · ${d.total_commits} commits</div>`+
-        (d.events||[]).map(e=>`<div class="event"><div class="h">${esc(e.commit.short)} · ${esc(e.commit.date)} · ${esc(e.commit.author)} · +${e.insertions}/-${e.deletions}</div><div class="s">${esc(e.commit.subject)}</div></div>`).join('');
+        (d.events||[]).map(e=>`<div class="event"><div class="h">${esc(e.commit.short)} · ${esc(e.commit.date)} · ${esc(e.commit.author)} · +${e.insertions}/-${e.deletions}</div><div class="s">${esc(e.commit.subject)}</div></div>`).join('')||'<div class="empty">No history</div>';
     } else if(view==='why'){
       const d=await fetch('/api/why?path='+path+'&q='+q).then(r=>r.json());
       if(d.error) throw new Error(d.error);
@@ -134,15 +258,18 @@ async function run(){
     } else if(view==='blast'){
       const d=await fetch('/api/blast?path='+path).then(r=>r.json());
       if(d.error) throw new Error(d.error);
-      out.innerHTML=`<div class="meta">${esc(d.summary)}</div>`+(d.related||[]).map(h=>`<div class="owner"><span>${esc(h.path)}</span><span>${h.co_changes}×</span></div><div class="bar"><i style="width:${h.affinity*100}%"></i></div>`).join('');
+      out.innerHTML=`<div class="meta">${esc(d.summary)}</div>`+(d.related||[]).map(h=>`<div class="owner"><span class="filelink" data-p="${esc(h.path)}" style="cursor:pointer;color:var(--accent2)">${esc(h.path)}</span><span>${h.co_changes}×</span></div><div class="bar"><i style="width:${h.affinity*100}%"></i></div>`).join('');
+      out.querySelectorAll('.filelink').forEach(a=>a.onclick=()=>{setSelected(a.dataset.p);view='timeline';document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.v==='timeline'));document.getElementById('outTitle').textContent=titles.timeline;run();});
     } else if(view==='hotspots'){
       const d=await fetch('/api/hotspots').then(r=>r.json());
       if(d.error) throw new Error(d.error);
-      out.innerHTML=(d.hotspots||[]).map(h=>`<div class="event"><div class="h">score ${h.score} · ${h.commits} commits · ${h.authors} authors</div><div class="s">${esc(h.path)}</div></div>`).join('');
+      out.innerHTML=(d.hotspots||[]).map(h=>`<div class="event" style="cursor:pointer" data-p="${esc(h.path)}"><div class="h">score ${h.score} · ${h.commits} commits · ${h.authors} authors</div><div class="s">${esc(h.path)}</div></div>`).join('')||'<div class="empty">No hotspots</div>';
+      out.querySelectorAll('.event[data-p]').forEach(e=>e.onclick=()=>{setSelected(e.dataset.p);view='timeline';document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.v==='timeline'));document.getElementById('outTitle').textContent=titles.timeline;run();});
     } else if(view==='stale'){
       const d=await fetch('/api/stale').then(r=>r.json());
       if(d.error) throw new Error(d.error);
-      out.innerHTML=(d.files||[]).map(f=>`<div class="event"><div class="h">${f.age_days}d · ${esc(f.last_date)} · ${esc(f.last_author)}</div><div class="s">${esc(f.path)}</div></div>`).join('')||'<div class="empty">No stale files</div>';
+      out.innerHTML=(d.files||[]).map(f=>`<div class="event" style="cursor:pointer" data-p="${esc(f.path)}"><div class="h">${f.age_days}d · ${esc(f.last_date)} · ${esc(f.last_author)}</div><div class="s">${esc(f.path)}</div></div>`).join('')||'<div class="empty">No stale files</div>';
+      out.querySelectorAll('.event[data-p]').forEach(e=>e.onclick=()=>{setSelected(e.dataset.p);view='timeline';document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.v==='timeline'));document.getElementById('outTitle').textContent=titles.timeline;run();});
     } else if(view==='contributors'){
       const d=await fetch('/api/contributors').then(r=>r.json());
       if(d.error) throw new Error(d.error);
@@ -156,8 +283,11 @@ async function run(){
     }
   }catch(e){out.innerHTML='<div class="empty">'+esc(e.message||e)+'</div>';}
 }
+
 document.getElementById('run').onclick=run;
-info().then(loadCached).then(run);
+document.getElementById('path').addEventListener('keydown',e=>{if(e.key==='Enter')run();});
+
+info().then(loadCached).then(()=>loadTree('')).then(run);
 </script>
 </body>
 </html>

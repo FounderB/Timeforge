@@ -3,8 +3,8 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand};
 use timeforge::{
     blast_radius, commit_churn, contributors, file_blame, file_hotspots, file_timeline,
-    list_cached, open_github, ownership_heatmap, remote, report, resolve_repo, stale_files,
-    why_broke,
+    list_cached, list_tree, open_github, ownership_heatmap, remote, repair_cache, report,
+    resolve_repo, stale_files, why_broke,
 };
 
 #[derive(Parser)]
@@ -35,6 +35,12 @@ enum Commands {
         spec: String,
         #[arg(long, help = "git fetch even if already cached")]
         update: bool,
+        #[arg(
+            long,
+            alias = "full",
+            help = "delete broken partial/promisor cache and re-clone fully"
+        )]
+        repair: bool,
     },
     /// List cached remote repositories (~/.timeforge/repos)
     Repos {
@@ -121,6 +127,13 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
+    /// List directory tree (icons) at path
+    Tree {
+        #[arg(default_value = "")]
+        path: String,
+        #[arg(long)]
+        json: bool,
+    },
     /// Demo web UI (supports opening remotes from the UI)
     Serve {
         #[arg(long, default_value = "127.0.0.1:8790")]
@@ -139,9 +152,17 @@ fn run() -> Result<(), String> {
     let cli = Cli::parse();
 
     match &cli.cmd {
-        Commands::Open { spec, update } => {
+        Commands::Open {
+            spec,
+            update,
+            repair,
+        } => {
             let (owner, name) = remote::parse_github_spec(spec)?;
-            let repo = open_github(&owner, &name, *update || cli.update)?;
+            let repo = if *repair {
+                repair_cache(&owner, &name)?
+            } else {
+                open_github(&owner, &name, *update || cli.update, false)?
+            };
             println!("opened {}/{}", owner, name);
             println!("path  {}", repo.path().display());
             println!("tip   timeforge --repo {}/{} timeline README.md", owner, name);
@@ -170,7 +191,7 @@ fn run() -> Result<(), String> {
 
     let repo = if remote::is_remote_spec(&spec) {
         let (owner, name) = remote::parse_github_spec(&spec)?;
-        open_github(&owner, &name, cli.update)?
+        open_github(&owner, &name, cli.update, false)?
     } else {
         resolve_repo(&spec)?
     };
@@ -255,6 +276,19 @@ fn run() -> Result<(), String> {
                 report::print_json(&c);
             } else {
                 report::print_churn(&c);
+            }
+        }
+        Commands::Tree { path, json } => {
+            let t = list_tree(&repo, &path)?;
+            if json {
+                report::print_json(&t);
+            } else {
+                let here = if t.path.is_empty() { "/" } else { t.path.as_str() };
+                println!("tree  {here}");
+                for e in &t.entries {
+                    let mark = if e.kind == "tree" { "/" } else { "" };
+                    println!("  {} {}{}", e.icon, e.name, mark);
+                }
             }
         }
         Commands::Serve { addr } => {

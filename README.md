@@ -41,19 +41,27 @@ cargo build --release
 | Local path | `/home/you/code/app` |
 
 ```bash
-timeforge open owner/repo          # clone (blobless) + cache
+timeforge open owner/repo          # full clone + cache (~/.timeforge/repos)
 timeforge open owner/repo --update # fetch latest
+timeforge open owner/repo --repair # fix broken partial/promisor cache (alias: --full)
 timeforge repos                    # list ~/.timeforge/repos
 timeforge --repo owner/repo why --query fix
 ```
 
----
-
-## CLI (v0.2)
+If you see `promisor` / `Couldn't connect to github.com` errors, the cache was a partial clone. Run:
 
 ```bash
-timeforge open <spec>
+timeforge open owner/repo --repair
+```
+
+---
+
+## CLI (v0.2.1)
+
+```bash
+timeforge open <spec> [--update] [--repair|--full]
 timeforge repos
+timeforge tree [path]       # browse with icons
 timeforge timeline <path>
 timeforge blame <path>
 timeforge why [--path …] [--query …]
@@ -63,7 +71,7 @@ timeforge hotspots          # highest churn files
 timeforge stale --days 180  # untouched files
 timeforge contributors
 timeforge churn             # weekly commit chart
-timeforge serve
+timeforge serve             # UI with file explorer
 ```
 
 Global: `--repo <path|owner/repo|url>` · `--update`
@@ -80,8 +88,8 @@ Global: `--repo <path|owner/repo|url>` · `--update`
 6. **Stale** — abandoned paths  
 7. **Contributors** / **Churn** — people & tempo  
 8. **Remote open** — analyze any public GitHub repo  
+9. **File explorer UI** — folders, icons, click-to-analyze  
 
----
 
 ## License
 

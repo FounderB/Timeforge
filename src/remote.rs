@@ -6,7 +6,6 @@ use crate::git;
 use crate::Repo;
 
 /// Resolve a local path OR remote GitHub spec into a Repo.
-/// Specs: `/path`, `owner/repo`, `https://github.com/owner/repo`, `github.com/owner/repo.git`
 pub fn resolve_repo(spec: &str) -> Result<Repo, String> {
     let spec = spec.trim();
     if spec.is_empty() {
@@ -19,17 +18,26 @@ pub fn resolve_repo(spec: &str) -> Result<Repo, String> {
     }
 
     let (owner, name) = parse_github_spec(spec)?;
-    open_github(&owner, &name, false)
+    open_github(&owner, &name, false, false)
 }
 
-pub fn open_github(owner: &str, name: &str, force_update: bool) -> Result<Repo, String> {
+pub fn open_github(
+    owner: &str,
+    name: &str,
+    force_update: bool,
+    full_clone: bool,
+) -> Result<Repo, String> {
     let cache = cache_dir()?.join(format!("{owner}_{name}"));
     if cache.join(".git").exists() {
+        git::harden_local_clone(&cache);
         if force_update {
             eprintln!("Timeforge: fetching updates for {owner}/{name}…");
-            git::git_in(&cache, &["fetch", "--all", "--prune"])?;
-            // try to update default branch quietly
-            let _ = git::git_in(&cache, &["pull", "--ff-only"]);
+            match git::git_in(&cache, &["fetch", "--all", "--prune"]) {
+                Ok(_) => {
+                    let _ = git::git_in(&cache, &["pull", "--ff-only"]);
+                }
+                Err(e) => eprintln!("Timeforge: fetch skipped ({e}) — using cached copy"),
+            }
         }
         return Repo::discover(&cache);
     }
@@ -39,19 +47,28 @@ pub fn open_github(owner: &str, name: &str, force_update: bool) -> Result<Repo, 
     eprintln!("Timeforge: cloning {url}");
     eprintln!("  → {}", cache.display());
 
+    // Full clone by default for reliable offline timeline/blame.
+    // Partial blobless clone is opt-in and can break without network (promisor).
+    let mut args = vec!["clone".to_string(), "--single-branch".into()];
+    if !full_clone {
+        // Still avoid blob:none — use treeless only if we ever need bandwidth.
+        // Prefer complete objects for the default branch.
+    }
+    args.push(url.clone());
+    args.push(cache.display().to_string());
+
     let status = Command::new("git")
-        .args([
-            "clone",
-            "--filter=blob:none",
-            "--single-branch",
-            &url,
-            cache.to_str().unwrap_or("."),
-        ])
+        .args(&args)
+        .env("GIT_TERMINAL_PROMPT", "0")
         .status()
         .map_err(|e| format!("git clone failed: {e}"))?;
     if !status.success() {
-        return Err(format!("failed to clone {url}"));
+        let _ = fs::remove_dir_all(&cache);
+        return Err(format!(
+            "failed to clone {url} — check network / repo visibility"
+        ));
     }
+    git::harden_local_clone(&cache);
     Repo::discover(&cache)
 }
 
@@ -120,4 +137,14 @@ pub fn is_remote_spec(spec: &str) -> bool {
         return false;
     }
     parse_github_spec(s).is_ok()
+}
+
+/// Re-clone without partial filter when an existing cache is broken.
+pub fn repair_cache(owner: &str, name: &str) -> Result<Repo, String> {
+    let cache = cache_dir()?.join(format!("{owner}_{name}"));
+    if cache.exists() {
+        eprintln!("Timeforge: repairing cache (removing partial clone)…");
+        let _ = fs::remove_dir_all(&cache);
+    }
+    open_github(owner, name, false, true)
 }

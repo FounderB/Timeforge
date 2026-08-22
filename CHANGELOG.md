@@ -1,3 +1,11 @@
+## 0.2.1 — File explorer + promisor fix
+
+- Web UI: file tree with icons, breadcrumbs, click folders/files
+- `timeforge tree [path]` + `/api/tree`
+- Full clones by default; `open --repair` / `--full` fixes broken partial/promisor caches
+- Offline-safe git (`GIT_NO_LAZY_FETCH`); timeline falls back without `--numstat`
+- UI: Repair clone button; click hotspots/stale/blast → timeline
+
 ## 0.2.0 — Remote repos + more insights
 
 - `timeforge open owner/repo` — clone/cache any public GitHub repo to `~/.timeforge/repos`

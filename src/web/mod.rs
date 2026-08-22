@@ -6,7 +6,8 @@ use tiny_http::{Header, Method, Response, Server};
 
 use crate::{
     blast_radius, commit_churn, contributors, file_blame, file_hotspots, file_timeline,
-    list_cached, open_github, ownership_heatmap, remote, stale_files, why_broke, Repo,
+    list_cached, list_tree, open_github, ownership_heatmap, remote, repair_cache, stale_files,
+    why_broke, Repo,
 };
 
 const INDEX: &str = include_str!("../../web/index.html");
@@ -83,14 +84,15 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
         if url == "/api/open" && method == Method::Post {
             let mut body = String::new();
             let _ = request.as_reader().read_to_string(&mut body);
-            let spec = serde_json::from_str::<serde_json::Value>(&body)
-                .ok()
-                .and_then(|v| {
-                    v.get("spec")
-                        .and_then(|s| s.as_str())
-                        .map(|s| s.to_string())
-                })
+            let parsed = serde_json::from_str::<serde_json::Value>(&body).ok();
+            let spec = parsed
+                .as_ref()
+                .and_then(|v| v.get("spec").and_then(|s| s.as_str()).map(|s| s.to_string()))
                 .or_else(|| query_param(&format!("?{body}"), "spec"));
+            let repair = parsed
+                .as_ref()
+                .and_then(|v| v.get("repair").and_then(|b| b.as_bool()))
+                .unwrap_or(false);
             let Some(spec) = spec else {
                 let _ = request.respond(respond(
                     400,
@@ -99,7 +101,14 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
                 ));
                 continue;
             };
-            match remote::parse_github_spec(&spec).and_then(|(o, n)| open_github(&o, &n, false)) {
+            let opened = remote::parse_github_spec(&spec).and_then(|(o, n)| {
+                if repair {
+                    repair_cache(&o, &n)
+                } else {
+                    open_github(&o, &n, false, false)
+                }
+            });
+            match opened {
                 Ok(repo) => {
                     let path = repo.path().display().to_string();
                     *state.lock().unwrap() = repo;
@@ -122,6 +131,25 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
 
         let path_q = query_param(&url, "path");
         let q = query_param(&url, "q");
+
+        if url.starts_with("/api/tree") {
+            let dir = path_q.unwrap_or_default();
+            let repo = state.lock().unwrap();
+            match list_tree(&repo, &dir) {
+                Ok(t) => {
+                    let body = serde_json::to_string_pretty(&t).unwrap_or_default();
+                    let _ = request.respond(respond(200, &body, "application/json"));
+                }
+                Err(e) => {
+                    let _ = request.respond(respond(
+                        400,
+                        &json!({"error": e}).to_string(),
+                        "application/json",
+                    ));
+                }
+            }
+            continue;
+        }
 
         if url.starts_with("/api/timeline") {
             let path = path_q.unwrap_or_else(|| "README.md".into());

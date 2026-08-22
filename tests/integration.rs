@@ -92,3 +92,15 @@ fn hotspots_and_contributors() {
     let c = timeforge::contributors(&repo, "10 years ago", 5).unwrap();
     assert_eq!(c.contributors[0].author, "Dev");
 }
+
+#[test]
+fn tree_lists_dirs_and_files() {
+    let dir = seed_repo();
+    let repo = timeforge::Repo::discover(dir.path()).unwrap();
+    let root = timeforge::list_tree(&repo, "").unwrap();
+    assert!(root.entries.iter().any(|e| e.name == "src" && e.kind == "tree"));
+    assert!(root.entries.iter().any(|e| e.name == "README.md" && e.kind == "blob"));
+    let src = timeforge::list_tree(&repo, "src").unwrap();
+    assert!(src.entries.iter().any(|e| e.name == "auth.rs"));
+    assert_eq!(src.parent.as_deref(), Some(""));
+}
