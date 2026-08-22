@@ -12,6 +12,8 @@ use crate::{
 };
 
 const INDEX: &str = include_str!("../../web/index.html");
+const ICON_PNG: &[u8] = include_bytes!("../../web/icon.png");
+const FAVICON_PNG: &[u8] = include_bytes!("../../web/favicon.png");
 
 pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
     let initial = Repo::discover(repo_path)?;
@@ -29,6 +31,14 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
             Response::from_string(body)
                 .with_status_code(status)
                 .with_header(Header::from_bytes("Content-Type", ctype).unwrap())
+                .with_header(Header::from_bytes("Access-Control-Allow-Origin", "*").unwrap())
+        };
+
+        let respond_bytes = |status: u16, body: &'static [u8], ctype: &str| {
+            Response::from_data(body)
+                .with_status_code(status)
+                .with_header(Header::from_bytes("Content-Type", ctype).unwrap())
+                .with_header(Header::from_bytes("Cache-Control", "public, max-age=86400").unwrap())
                 .with_header(Header::from_bytes("Access-Control-Allow-Origin", "*").unwrap())
         };
 
@@ -50,6 +60,15 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
 
         if url == "/" || url.starts_with("/index") {
             let _ = request.respond(respond(200, INDEX, "text/html; charset=utf-8"));
+            continue;
+        }
+
+        if url.starts_with("/icon.png") || url.starts_with("/avatar.png") {
+            let _ = request.respond(respond_bytes(200, ICON_PNG, "image/png"));
+            continue;
+        }
+        if url.starts_with("/favicon") {
+            let _ = request.respond(respond_bytes(200, FAVICON_PNG, "image/png"));
             continue;
         }
 

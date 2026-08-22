@@ -1,68 +1,77 @@
-# Timeforge
+<p align="center">
+  <img src="assets/timeforge-icon.png" alt="Timeforge" width="160" height="160"/>
+</p>
 
-**Repo Time Machine for GitHub — local or any remote repo.**
+<h1 align="center">Timeforge</h1>
 
-See what changed, who owns it, why it broke — on *your* machine or any `owner/repo`.
+<p align="center">
+  <strong>Repo Time Machine</strong> — ask one question about any Git history.<br/>
+  Who broke it · when it appeared · who still owns it · in ~10ms.
+</p>
 
-Part of **FounderB**: [FluxTap](https://github.com/FounderB/FluxTap) · [Tracefuse](https://github.com/FounderB/Tracefuse) · [SignShield](https://github.com/FounderB/SignShield) · **Timeforge**
+<p align="center">
+  <a href="https://github.com/FounderB/Timeforge/actions"><img src="https://img.shields.io/badge/build-rust-38bdf8?style=flat-square" alt="Rust"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-5eead4?style=flat-square" alt="MIT"/></a>
+  <img src="https://img.shields.io/badge/version-0.5-0d1520?style=flat-square&labelColor=5eead4&color=0d1520" alt="v0.5"/>
+  <img src="https://img.shields.io/badge/FounderB-stack-38bdf8?style=flat-square" alt="FounderB"/>
+</p>
+
+<p align="center">
+  <a href="https://github.com/FounderB/FluxTap">FluxTap</a> ·
+  <a href="https://github.com/FounderB/Tracefuse">Tracefuse</a> ·
+  <a href="https://github.com/FounderB/SignShield">SignShield</a> ·
+  <b>Timeforge</b>
+</p>
 
 ---
 
-## Quick start
+## Why
+
+GitHub shows *what* changed. Timeforge answers **why it hurts**:
+
+| You ask | You get |
+|---------|---------|
+| `promisor` | first commit that introduced it + later churn |
+| `#12` | PR files + what touched them after |
+| `panic in auth` | ranked suspects in milliseconds |
+| a file path | blame zones, bus factor, ghosts |
+
+Local or any public `owner/repo` — cached under `~/.timeforge/repos`, updated **in place**.
+
+---
+
+## 60-second wow
 
 ```bash
 git clone https://github.com/FounderB/Timeforge.git
-cd Timeforge
-cargo build --release
+cd Timeforge && cargo build --release
 
-# local repo (cwd)
-./target/release/timeforge timeline README.md
-./target/release/timeforge hotspots
-./target/release/timeforge heatmap
+# one question
+./target/release/timeforge hunt --query unwrap
 
-# ANY GitHub repo (cloned to ~/.timeforge/repos)
-./target/release/timeforge open FounderB/SignShield
-./target/release/timeforge --repo FounderB/SignShield timeline README.md
-./target/release/timeforge --repo rust-lang/mdBook contributors
+# any GitHub repo
+./target/release/timeforge open rust-lang/mdBook
+./target/release/timeforge --repo rust-lang/mdBook hunt --query panic
 
-# web UI — open remotes from the browser
+# UI — Ask box + explorer
 ./target/release/timeforge serve
 # → http://127.0.0.1:8790
 ```
 
----
-
-## Remote repos
-
-| Spec | Example |
-|------|---------|
-| `owner/repo` | `FounderB/SignShield` |
-| HTTPS | `https://github.com/rust-lang/mdBook` |
-| Local path | `/home/you/code/app` |
-
-```bash
-timeforge open owner/repo          # full clone + cache (~/.timeforge/repos)
-timeforge open owner/repo --update # fetch latest
-timeforge open owner/repo --repair # fix broken partial/promisor cache (alias: --full)
-timeforge repos                    # list ~/.timeforge/repos
-timeforge --repo owner/repo why --query fix
-```
-
-If you see `promisor` / `Couldn't connect to github.com` errors, the cache was a partial clone. Run:
-
-```bash
-timeforge open owner/repo --repair
-```
+<p align="center"><img src="assets/timeforge-icon.png" width="72" alt=""/></p>
 
 ---
 
-## CLI (v0.5)
+## Ask mode (v0.5)
 
 ```bash
-timeforge ask / hunt --query unwrap   # one-question fast radar (~10ms local)
-timeforge hunt --query '#12'          # PR fast path
-timeforge update | repair             # in-place only
-timeforge serve                       # Ask box + online pill
+timeforge hunt --query promisor     # ~10ms local answer
+timeforge hunt --query '#42'        # PR fast path
+timeforge dig unsafe                # archaeology: first / last seen
+timeforge pairs                     # fix ↔ break
+timeforge map src/main.rs           # blame zones
+timeforge update                    # fetch in the same folder
+timeforge repair                    # materialize missing objects in place
 ```
 
 Global: `--repo <path|owner/repo|url>` · `--update`
@@ -71,18 +80,65 @@ Global: `--repo <path|owner/repo|url>` · `--update`
 
 ## Features
 
-1. **Bug Hunt / Radar** — one-shot suspects + dig + pairs + ghosts  
-2. **Archaeology** — when a code pattern was born  
-3. **Fix↔Break** — link fixes to earlier culprits  
-4. **Update** — sync repo to latest remote  
-5. **Time Machine** — file history + rename follow  
-6. **Blame Map** — colored ownership zones  
-7. **PR Time Travel** — PR files + later churn  
-8. **Ghost authors** — silent owners + path bus-factor  
-9. **Why / Heatmap / Blast / Hotspots / Stale / Churn**  
-10. **Remote open** + **explorer UI** (pins, sparks, keyboard)  
+1. **Bug Hunt / Radar** — parallel why ∥ dig ∥ pairs · `ANSWER` + `elapsed_ms`  
+2. **Ask UI** — one field, Enter, online/offline pill  
+3. **Archaeology** — `git log -S` birth certificate for a pattern  
+4. **Fix↔Break** — link hotfixes to earlier culprits  
+5. **Blame Map** — ownership color strip  
+6. **PR Time Travel** — files + later touches  
+7. **Ghost authors** — silent owners + path bus-factor  
+8. **Time Machine** — rename-aware timeline  
+9. **Heatmap · Blast · Hotspots · Stale · Churn**  
+10. **In-place Update/Repair** — never wipe-and-reclone by default  
 
+---
+
+## Remote cache
+
+| Spec | Example |
+|------|---------|
+| `owner/repo` | `FounderB/SignShield` |
+| HTTPS | `https://github.com/rust-lang/mdBook` |
+| Local path | `/home/you/code/app` |
+
+```bash
+timeforge open owner/repo
+timeforge open owner/repo --update
+timeforge open owner/repo --repair   # in-place materialize / fix promisor
+timeforge repos
+```
+
+Partial clone screaming about promisor? **Update** or **Repair** in the UI — same path, new objects only.
+
+---
+
+## Architecture
+
+```mermaid
+flowchart LR
+  Q[Ask / hunt] --> R{Route}
+  R -->|#PR| P[PR Travel]
+  R -->|token| Parallel
+  Parallel --> W[why]
+  Parallel --> D[dig -S]
+  Parallel --> F[fix↔break]
+  W --> A[ANSWER]
+  D --> A
+  F --> A
+  P --> A
+  A --> UI[Web / CLI]
+```
+
+---
+
+## Stack
+
+- **Rust** CLI + tiny HTTP UI  
+- Pure **git** under the hood (offline-friendly, network when needed)  
+- MIT · FounderB  
+
+---
 
 ## License
 
-MIT
+MIT © FounderB

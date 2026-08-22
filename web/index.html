@@ -4,19 +4,28 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Timeforge — Repo Time Machine</title>
+<link rel="icon" type="image/png" href="/favicon.png"/>
+<link rel="apple-touch-icon" href="/icon.png"/>
 <style>
 :root{
   --bg:#070b10;--panel:#0d1520;--panel2:#0a121b;--line:#1c2e3f;--text:#e8f2f7;
   --muted:#6d8798;--accent:#5eead4;--accent2:#38bdf8;--warn:#fbbf24;--bad:#fb7185;
-  --hover:#122033;--sel:#0f2a2a;
+  --hover:#122033;--sel:#0f2a2a;--scroll:#152636;--thumb:#2a4558;--thumb-hover:#3a6a82;
   --c0:#5eead4;--c1:#38bdf8;--c2:#a78bfa;--c3:#f472b6;--c4:#fbbf24;--c5:#34d399;--c6:#fb7185;--c7:#94a3b8;
 }
 *{box-sizing:border-box;margin:0;padding:0}
+html{scrollbar-width:thin;scrollbar-color:var(--thumb) var(--scroll)}
+*::-webkit-scrollbar{width:10px;height:10px}
+*::-webkit-scrollbar-track{background:var(--scroll);border-radius:8px}
+*::-webkit-scrollbar-thumb{background:var(--thumb);border-radius:8px;border:2px solid var(--scroll)}
+*::-webkit-scrollbar-thumb:hover{background:var(--thumb-hover)}
+*::-webkit-scrollbar-corner{background:var(--scroll)}
 body{font-family:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;background:radial-gradient(1200px 600px at 10% -10%,#122033 0%,var(--bg) 55%);color:var(--text);min-height:100vh}
 .wrap{max-width:1320px;margin:0 auto;padding:1.25rem 1.5rem 2rem}
 .hero{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1rem;flex-wrap:wrap}
 .brand{display:flex;align-items:center;gap:1rem}
-.logo{width:48px;height:48px;border-radius:14px;background:linear-gradient(145deg,var(--accent),var(--accent2));box-shadow:0 8px 28px rgba(56,189,248,.35)}
+.logo{width:52px;height:52px;border-radius:14px;overflow:hidden;box-shadow:0 8px 28px rgba(56,189,248,.35);flex-shrink:0;background:#0a1520}
+.logo img{width:100%;height:100%;display:block;object-fit:cover}
 h1{font-size:1.55rem;letter-spacing:-.03em;font-weight:700}
 .tag{color:var(--muted);font-size:.8rem;margin-top:.15rem}
 .kbd{font-size:.65rem;color:var(--muted);border:1px solid var(--line);padding:.1rem .35rem;border-radius:4px;margin-left:.35rem}
@@ -94,7 +103,7 @@ button.mini:hover{color:var(--text);border-color:var(--accent)}
 <div class="wrap">
   <div class="hero">
     <div class="brand">
-      <div class="logo"></div>
+      <div class="logo"><img src="/icon.png" alt="Timeforge" width="52" height="52"/></div>
       <div>
         <h1>Timeforge</h1>
         <div class="tag">One question · fast hunt · FounderB <span class="kbd">Enter</span> <span class="kbd">u</span> <span id="netPill" class="net off">…</span></div>

@@ -1,3 +1,9 @@
+## 0.5.1 — Brand + dark scrollbars
+
+- Official icon (`assets/timeforge-icon.png`) in UI, favicon, README
+- Dark teal scrollbars (no white tracks)
+- README relaunch: Ask-first, badges, mermaid
+
 ## 0.5.0 — Fast one-question hunt
 
 - Parallel hunt (why ∥ dig ∥ pairs); skips heavy ghosts/blame unless path given
