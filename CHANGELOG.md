@@ -1,3 +1,12 @@
+## 0.4.0 — Bug Hunt · Archaeology · Update
+
+- **Bug Hunt / Radar** (`hunt` / `radar`) — suspects + dig + fix↔break + ghosts in one shot
+- **Archaeology** (`dig <pattern>`) — `git log -S` first/last seen for code patterns
+- **Fix↔Break** (`pairs`) — fix commits paired with likely earlier culprits
+- **Update** (`update` + UI button) — `git fetch` + ff-pull current repo
+- Hunt scoring hardened: garbage keywords no longer spam weak suspects
+- UI: Bug Hunt default tab, Archaeology, Fix↔Break, Update / `u` key
+
 ## 0.3.0 — Blame Map · PR Travel · Ghosts
 
 - **Blame Map** (`map` / `/api/map`) — ownership zones + color strip

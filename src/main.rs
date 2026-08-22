@@ -2,9 +2,10 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 use timeforge::{
-    blame_map, blast_radius, commit_churn, contributors, file_blame, file_hotspots, file_timeline,
-    ghost_authors, list_cached, list_tree, open_github, ownership_heatmap, pr_travel, remote,
-    repair_cache, report, resolve_repo, stale_files, why_broke,
+    blame_map, blast_radius, bug_hunt, commit_churn, contributors, dig_pattern, file_blame,
+    file_hotspots, file_timeline, fix_break_pairs, ghost_authors, list_cached, list_tree,
+    open_github, ownership_heatmap, pr_travel, remote, repair_cache, report, resolve_repo,
+    stale_files, update_repo, why_broke,
 };
 
 #[derive(Parser)]
@@ -41,6 +42,11 @@ enum Commands {
         )]
         repair: bool,
     },
+    /// Fetch + fast-forward current repo to latest remote
+    Update {
+        #[arg(long)]
+        json: bool,
+    },
     /// List cached remote repositories (~/.timeforge/repos)
     Repos {
         #[arg(long)]
@@ -70,7 +76,6 @@ enum Commands {
     },
     /// PR Time Travel — files + later churn for #N
     Pr {
-        /// PR number: 12, #12, or pull/12
         query: String,
         #[arg(long, default_value_t = 12)]
         later: usize,
@@ -83,6 +88,45 @@ enum Commands {
         days: i64,
         #[arg(long, default_value_t = 20)]
         limit: usize,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Bug archaeology — when a code pattern first appeared (git pickaxe)
+    Dig {
+        pattern: String,
+        #[arg(long, default_value_t = 20)]
+        limit: usize,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Fix ↔ break pairs
+    Pairs {
+        #[arg(long, default_value = "365 days ago")]
+        since: String,
+        #[arg(long, default_value_t = 12)]
+        limit: usize,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Bug hunt / regression radar — combined suspects + dig + pairs
+    Hunt {
+        #[arg(long, help = "keyword, stack fragment, test name")]
+        query: Option<String>,
+        #[arg(long)]
+        path: Option<PathBuf>,
+        #[arg(long, default_value = "180 days ago")]
+        since: String,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Alias for hunt
+    Radar {
+        #[arg(long)]
+        query: Option<String>,
+        #[arg(long)]
+        path: Option<PathBuf>,
+        #[arg(long, default_value = "180 days ago")]
+        since: String,
         #[arg(long)]
         json: bool,
     },
@@ -99,7 +143,6 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
-    /// Ownership heatmap / bus factor
     Heatmap {
         #[arg(long, default_value = "180 days ago")]
         since: String,
@@ -108,7 +151,6 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
-    /// Blast radius — files that move with this path
     Blast {
         path: PathBuf,
         #[arg(long, default_value_t = 15)]
@@ -116,7 +158,6 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
-    /// Files with highest change churn
     Hotspots {
         #[arg(long, default_value = "180 days ago")]
         since: String,
@@ -125,7 +166,6 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
-    /// Files not touched for N days
     Stale {
         #[arg(long, default_value_t = 180)]
         days: i64,
@@ -134,7 +174,6 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
-    /// Top contributors
     Contributors {
         #[arg(long, default_value = "365 days ago")]
         since: String,
@@ -143,21 +182,18 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
-    /// Weekly commit churn chart
     Churn {
         #[arg(long, default_value = "365 days ago")]
         since: String,
         #[arg(long)]
         json: bool,
     },
-    /// List directory tree (icons) at path
     Tree {
         #[arg(default_value = "")]
         path: String,
         #[arg(long)]
         json: bool,
     },
-    /// Demo web UI (supports opening remotes from the UI)
     Serve {
         #[arg(long, default_value = "127.0.0.1:8790")]
         addr: String,
@@ -218,6 +254,15 @@ fn run() -> Result<(), String> {
 
     match cli.cmd {
         Commands::Open { .. } | Commands::Repos { .. } => unreachable!(),
+        Commands::Update { json } => {
+            let u = update_repo(&repo)?;
+            if json {
+                report::print_json(&u);
+            } else {
+                println!("update  {}", u.message);
+                println!("HEAD    {} → {}", u.before, u.after);
+            }
+        }
         Commands::Timeline { path, limit, json } => {
             let t = file_timeline(&repo, &path.to_string_lossy(), limit)?;
             if json {
@@ -256,6 +301,51 @@ fn run() -> Result<(), String> {
                 report::print_json(&g);
             } else {
                 report::print_ghosts(&g);
+            }
+        }
+        Commands::Dig {
+            pattern,
+            limit,
+            json,
+        } => {
+            let d = dig_pattern(&repo, &pattern, limit)?;
+            if json {
+                report::print_json(&d);
+            } else {
+                report::print_dig(&d);
+            }
+        }
+        Commands::Pairs {
+            since,
+            limit,
+            json,
+        } => {
+            let p = fix_break_pairs(&repo, &since, limit)?;
+            if json {
+                report::print_json(&p);
+            } else {
+                report::print_pairs(&p);
+            }
+        }
+        Commands::Hunt {
+            query,
+            path,
+            since,
+            json,
+        }
+        | Commands::Radar {
+            query,
+            path,
+            since,
+            json,
+        } => {
+            let p = path.as_ref().map(|p| p.to_string_lossy().to_string());
+            let q = query.unwrap_or_default();
+            let h = bug_hunt(&repo, &q, p.as_deref(), &since)?;
+            if json {
+                report::print_json(&h);
+            } else {
+                report::print_hunt(&h);
             }
         }
         Commands::Why {

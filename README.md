@@ -56,25 +56,25 @@ timeforge open owner/repo --repair
 
 ---
 
-## CLI (v0.3)
+## CLI (v0.4)
 
 ```bash
 timeforge open <spec> [--update] [--repair|--full]
+timeforge update                # fetch + ff-pull current repo
 timeforge repos
 timeforge tree [path]
-timeforge timeline <path>       # rename-aware
+timeforge hunt --query unwrap   # Bug Hunt / regression radar
+timeforge radar --query panic   # alias of hunt
+timeforge dig <pattern>         # archaeology: first/last seen
+timeforge pairs                 # fix ↔ break pairs
+timeforge timeline <path>
 timeforge blame <path>
-timeforge map <path>            # Blame Map zones
-timeforge pr <N|#N|pull/N>      # PR Time Travel
-timeforge ghosts [--days 180]   # silent owners + bus factor
+timeforge map <path>
+timeforge pr <N|#N|pull/N>
+timeforge ghosts [--days 180]
 timeforge why [--path …] [--query …]
-timeforge heatmap
-timeforge blast <path>
-timeforge hotspots
-timeforge stale --days 180
-timeforge contributors
-timeforge churn
-timeforge serve                 # explorer + map + PR + ghosts
+timeforge heatmap | blast | hotspots | stale | contributors | churn
+timeforge serve                 # UI: Hunt + Update button
 ```
 
 Global: `--repo <path|owner/repo|url>` · `--update`
@@ -83,16 +83,16 @@ Global: `--repo <path|owner/repo|url>` · `--update`
 
 ## Features
 
-1. **Time Machine** — file history + PR hints + rename follow  
-2. **Blame Map** — colored ownership zones  
-3. **PR Time Travel** — what a PR touched + what broke later  
-4. **Ghost authors** — silent owners + path bus-factor  
-5. **Why broke** — ranked culprit commits  
-6. **Heatmap** — ownership / bus factor  
-7. **Blast radius** — co-change affinity  
-8. **Hotspots / Stale / Contributors / Churn**  
-9. **Remote open** — any public GitHub repo  
-10. **File explorer UI** — icons, sparks, pins, keyboard  
+1. **Bug Hunt / Radar** — one-shot suspects + dig + pairs + ghosts  
+2. **Archaeology** — when a code pattern was born  
+3. **Fix↔Break** — link fixes to earlier culprits  
+4. **Update** — sync repo to latest remote  
+5. **Time Machine** — file history + rename follow  
+6. **Blame Map** — colored ownership zones  
+7. **PR Time Travel** — PR files + later churn  
+8. **Ghost authors** — silent owners + path bus-factor  
+9. **Why / Heatmap / Blast / Hotspots / Stale / Churn**  
+10. **Remote open** + **explorer UI** (pins, sparks, keyboard)  
 
 
 ## License

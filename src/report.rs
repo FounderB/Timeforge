@@ -2,12 +2,15 @@ use colored::Colorize;
 use comfy_table::{presets::UTF8_FULL, Table};
 
 use crate::activity::{ChurnReport, ContributorsReport};
+use crate::archaeology::ArchaeologyReport;
 use crate::blame::BlameReport;
 use crate::blame_map::BlameMap;
 use crate::blast::BlastReport;
+use crate::fixbreak::FixBreakReport;
 use crate::ghosts::GhostReport;
 use crate::heatmap::Heatmap;
 use crate::hotspots::HotspotsReport;
+use crate::hunt::HuntReport;
 use crate::pr::PrTravel;
 use crate::remote::CachedRepo;
 use crate::stale::StaleReport;
@@ -154,6 +157,73 @@ pub fn print_ghosts(g: &GhostReport) {
                 p.top_author.cyan(),
                 p.path
             );
+        }
+    }
+    println!();
+}
+
+pub fn print_dig(d: &ArchaeologyReport) {
+    banner();
+    println!("{}  `{}`\n", "BUG ARCHAEOLOGY".bold().yellow(), d.pattern.cyan());
+    println!("  {}\n", d.summary.dimmed());
+    for e in &d.events {
+        println!(
+            "  [{}] {} {} {} — {}",
+            e.kind.magenta(),
+            e.commit.short.green(),
+            e.commit.date.dimmed(),
+            e.commit.author.cyan(),
+            e.commit.subject
+        );
+        if !e.files.is_empty() {
+            println!("        {}", e.files.join(", ").dimmed());
+        }
+    }
+    println!();
+}
+
+pub fn print_pairs(p: &FixBreakReport) {
+    banner();
+    println!("{}\n  {}\n", "FIX ↔ BREAK".bold().red(), p.summary.dimmed());
+    for (i, pair) in p.pairs.iter().enumerate() {
+        println!(
+            "  {:>2}. conf {}  fix {} — {}",
+            i + 1,
+            format!("{:>2}", pair.confidence).yellow(),
+            pair.fix.short.green(),
+            pair.fix.subject
+        );
+        if let Some(b) = &pair.break_commit {
+            println!(
+                "      break {} {} — {}",
+                b.short.red(),
+                b.date.dimmed(),
+                b.subject
+            );
+        }
+        println!("      {}", pair.note.dimmed());
+        if !pair.shared_files.is_empty() {
+            println!("      files: {}", pair.shared_files.join(", ").dimmed());
+        }
+    }
+    println!();
+}
+
+pub fn print_hunt(h: &HuntReport) {
+    banner();
+    println!("{}\n  {}\n", "BUG HUNT / REGRESSION RADAR".bold().red(), h.summary.dimmed());
+    for hit in &h.hits {
+        println!(
+            "  {:>3}  [{:^10}] {}",
+            hit.score.to_string().yellow(),
+            hit.kind.cyan(),
+            hit.title
+        );
+        if !hit.detail.is_empty() {
+            println!("        {}", hit.detail.dimmed());
+        }
+        if let Some(p) = &hit.path {
+            println!("        → {}", p.yellow());
         }
     }
     println!();

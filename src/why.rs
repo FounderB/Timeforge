@@ -72,6 +72,7 @@ pub fn why_broke(
     }
 
     suspects.sort_by(|a, b| b.score.cmp(&a.score));
+    suspects.retain(|s| s.score > 0);
     suspects.truncate(limit);
 
     let query = keyword.unwrap_or("recent risk").to_string();
@@ -84,7 +85,11 @@ pub fn why_broke(
 }
 
 fn score_commit(commit: CommitInfo, files: &[String], keyword: Option<&str>) -> Suspect {
-    let mut score = 10u32;
+    let mut score = if keyword.map(|k| !k.trim().is_empty()).unwrap_or(false) {
+        0u32
+    } else {
+        10u32
+    };
     let mut reasons = Vec::new();
 
     let subj = commit.subject.to_lowercase();
@@ -95,10 +100,41 @@ fn score_commit(commit: CommitInfo, files: &[String], keyword: Option<&str>) -> 
         }
     }
     if let Some(kw) = keyword {
-        let k = kw.to_lowercase();
-        if subj.contains(&k) || files.iter().any(|f| f.to_lowercase().contains(&k)) {
-            score += 25;
-            reasons.push(format!("matches keyword `{kw}`"));
+        let k = kw.trim().to_lowercase();
+        if !k.is_empty() {
+            let mut matched = false;
+            if subj.contains(&k) {
+                score += 30;
+                reasons.push(format!("subject matches `{kw}`"));
+                matched = true;
+            }
+            if files.iter().any(|f| f.to_lowercase().contains(&k)) {
+                score += 20;
+                reasons.push(format!("path matches `{kw}`"));
+                matched = true;
+            }
+            // Soft boost if keyword appears as token in subject words
+            if !matched {
+                for part in k.split(|c: char| !c.is_alphanumeric()) {
+                    if part.len() >= 3 && subj.contains(part) {
+                        score += 18;
+                        reasons.push(format!("subject token `{part}`"));
+                        matched = true;
+                        break;
+                    }
+                }
+            }
+            if !matched {
+                // Keep a tiny score only for fix-like commits so they can still surface.
+                if score == 0 {
+                    return Suspect {
+                        commit,
+                        score: 0,
+                        reasons: vec!["no keyword match".into()],
+                        files_touched: files.iter().take(12).cloned().collect(),
+                    };
+                }
+            }
         }
     }
     if files.len() > 12 {
@@ -110,7 +146,11 @@ fn score_commit(commit: CommitInfo, files: &[String], keyword: Option<&str>) -> 
     }
     for f in files {
         let fl = f.to_lowercase();
-        if fl.contains("auth") || fl.contains("security") || fl.contains("crypto") || fl.contains("payment") {
+        if fl.contains("auth")
+            || fl.contains("security")
+            || fl.contains("crypto")
+            || fl.contains("payment")
+        {
             score += 12;
             reasons.push(format!("touches sensitive path `{f}`"));
             break;

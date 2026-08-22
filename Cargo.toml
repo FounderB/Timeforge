@@ -1,6 +1,6 @@
 [package]
 name = "timeforge"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 description = "Repo Time Machine for GitHub — see what changed, who owns it, and why it broke"
 license = "MIT"

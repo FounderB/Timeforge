@@ -73,6 +73,22 @@ pub fn parse_log_line(line: &str) -> Option<CommitInfo> {
     })
 }
 
+/// Run git allowing network (fetch/pull). Does not set GIT_NO_LAZY_FETCH.
+pub fn git_network_in(cwd: &Path, args: &[&str]) -> Result<String, String> {
+    let output = Command::new("git")
+        .args(args)
+        .current_dir(cwd)
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env("GIT_OPTIONAL_LOCKS", "0")
+        .output()
+        .map_err(|e| format!("git failed to start: {e}"))?;
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("git {}: {}", args.join(" "), err.trim()));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
 /// Disable promisor remotes so offline analysis never tries GitHub again.
 pub fn harden_local_clone(repo: &Path) {
     let _ = git_in(repo, &["config", "remote.origin.promisor", "false"]);

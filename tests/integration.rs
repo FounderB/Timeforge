@@ -130,10 +130,47 @@ fn pr_travel_finds_hash_mention() {
 }
 
 #[test]
-fn ghosts_runs() {
+fn dig_finds_real_pattern_and_rejects_noise() {
     let dir = seed_repo();
     let repo = timeforge::Repo::discover(dir.path()).unwrap();
-    let g = timeforge::ghost_authors(&repo, 1, 10).unwrap();
-    // Fresh seed repo — author is still "active"; just ensure API works.
-    assert!(g.since_days == 1);
+    // "login" was introduced in auth.rs
+    let hit = timeforge::dig_pattern(&repo, "login", 10).unwrap();
+    assert!(!hit.events.is_empty(), "expected dig hits for login");
+    let miss = timeforge::dig_pattern(&repo, "zzznofindpattern999", 10).unwrap();
+    assert!(miss.events.is_empty());
+}
+
+#[test]
+fn hunt_ranks_auth_and_ignores_garbage() {
+    let dir = seed_repo();
+    let repo = timeforge::Repo::discover(dir.path()).unwrap();
+    let good = timeforge::bug_hunt(&repo, "auth", Some("src"), "10 years ago").unwrap();
+    assert!(!good.hits.is_empty());
+    assert!(
+        good.hits.iter().any(|h| h.score >= 25),
+        "expected strong hits for auth: {:?}",
+        good.hits
+    );
+    let bad = timeforge::bug_hunt(&repo, "qqqqqqqqnofind", None, "10 years ago").unwrap();
+    assert!(
+        bad.hits.iter().all(|h| h.kind != "suspect" || h.score >= 18),
+        "garbage query should not produce weak suspects: {:?}",
+        bad.hits
+    );
+    // Prefer empty or dig-only for nonsense
+    assert!(
+        bad.dig.as_ref().map(|d| d.events.is_empty()).unwrap_or(true)
+    );
+}
+
+#[test]
+fn pairs_finds_fix_commit() {
+    let dir = seed_repo();
+    let repo = timeforge::Repo::discover(dir.path()).unwrap();
+    let p = timeforge::fix_break_pairs(&repo, "10 years ago", 10).unwrap();
+    assert!(
+        !p.pairs.is_empty(),
+        "seed has 'fix auth panic' commit"
+    );
+    assert!(p.pairs.iter().any(|x| x.fix.subject.contains("fix")));
 }

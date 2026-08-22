@@ -148,3 +148,69 @@ pub fn repair_cache(owner: &str, name: &str) -> Result<Repo, String> {
     }
     open_github(owner, name, false, true)
 }
+
+/// Fetch + ff-pull the current repo (update to latest remote).
+pub fn update_repo(repo: &Repo) -> Result<UpdateResult, String> {
+    let path = repo.path();
+    git::harden_local_clone(path);
+
+    let before = git::git_in(path, &["rev-parse", "--short", "HEAD"])
+        .unwrap_or_else(|_| "?".into())
+        .trim()
+        .to_string();
+
+    let remote = git::git_in(path, &["remote"]).unwrap_or_default();
+    if remote.trim().is_empty() {
+        return Ok(UpdateResult {
+            ok: true,
+            before: before.clone(),
+            after: before,
+            message: "no remotes configured — local-only repo".into(),
+        });
+    }
+
+    git::git_network_in(path, &["fetch", "--all", "--prune"])?;
+
+    let pull = git::git_network_in(path, &["pull", "--ff-only"]);
+    let after = git::git_in(path, &["rev-parse", "--short", "HEAD"])
+        .unwrap_or_else(|_| before.clone())
+        .trim()
+        .to_string();
+
+    let message = match pull {
+        Ok(out) => {
+            let t = out.trim();
+            if before == after {
+                if t.is_empty() || t.contains("Already up to date") {
+                    "already up to date".into()
+                } else {
+                    format!("fetched · HEAD still {after}")
+                }
+            } else {
+                format!("updated {before} → {after}")
+            }
+        }
+        Err(e) => {
+            if before != after {
+                format!("fetched; pull note: {e}")
+            } else {
+                return Err(format!("update failed: {e}"));
+            }
+        }
+    };
+
+    Ok(UpdateResult {
+        ok: true,
+        before,
+        after,
+        message,
+    })
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct UpdateResult {
+    pub ok: bool,
+    pub before: String,
+    pub after: String,
+    pub message: String,
+}

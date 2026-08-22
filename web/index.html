@@ -81,7 +81,7 @@ button.mini:hover{color:var(--text);border-color:var(--accent)}
       <div class="logo"></div>
       <div>
         <h1>Timeforge</h1>
-        <div class="tag">Explorer · blame map · PR travel · ghosts <span class="kbd">j/k</span> <span class="kbd">Enter</span> <span class="kbd">b</span> <span class="kbd">p</span></div>
+        <div class="tag">Bug hunt · radar · archaeology · FounderB <span class="kbd">j/k</span> <span class="kbd">h</span> <span class="kbd">u</span></div>
       </div>
     </div>
     <div class="meta" id="repoInfo" style="margin:0;text-align:right">Loading…</div>
@@ -90,14 +90,18 @@ button.mini:hover{color:var(--text);border-color:var(--accent)}
   <div class="open-row">
     <input id="remoteSpec" placeholder="Open remote: FounderB/SignShield or rust-lang/mdBook"/>
     <button id="btnOpen">Open</button>
+    <button class="ghost" id="btnUpdate" title="git fetch + pull — sync to latest">Update</button>
     <button class="ghost" id="btnRepair">Repair</button>
   </div>
   <div class="chips" id="cached"></div>
   <div class="chips" id="pins"></div>
 
   <div class="tabs">
-    <button class="tab active" data-v="timeline">Time Machine</button>
+    <button class="tab active" data-v="hunt">Bug Hunt</button>
+    <button class="tab" data-v="timeline">Time Machine</button>
     <button class="tab" data-v="map">Blame Map</button>
+    <button class="tab" data-v="dig">Archaeology</button>
+    <button class="tab" data-v="pairs">Fix↔Break</button>
     <button class="tab" data-v="pr">PR Travel</button>
     <button class="tab" data-v="ghosts">Ghosts</button>
     <button class="tab" data-v="why">Why broke</button>
@@ -120,15 +124,15 @@ button.mini:hover{color:var(--text);border-color:var(--accent)}
       <h2>Controls</h2>
       <label>Selected path</label>
       <input class="ctrl" id="path" value="README.md"/>
-      <label>Keyword / PR #</label>
-      <input class="ctrl" id="query" placeholder="auth · #12 · panic…"/>
-      <button class="primary" id="run">Run</button>
+      <label>Keyword / PR # / pattern</label>
+      <input class="ctrl" id="query" placeholder="promisor · unwrap · #12 · panic…"/>
+      <button class="primary" id="run">Run hunt</button>
       <button class="mini" id="btnPin">Pin path</button>
-      <p class="meta" style="margin-top:.85rem">Folders: enter · Files: analyze · <b>b</b> map · <b>p</b> PR</p>
+      <p class="meta" style="margin-top:.85rem"><b>h</b> hunt · <b>u</b> update · <b>b</b> map · Dig finds first-seen code</p>
     </section>
 
     <section class="panel">
-      <h2 id="outTitle">Timeline</h2>
+      <h2 id="outTitle">Bug Hunt</h2>
       <div id="selPath" class="path-pill" style="margin-bottom:.7rem">README.md</div>
       <div id="out" class="empty">Pick a file and hit Run</div>
     </section>
@@ -136,12 +140,12 @@ button.mini:hover{color:var(--text);border-color:var(--accent)}
 </div>
 <script>
 const COLORS=['var(--c0)','var(--c1)','var(--c2)','var(--c3)','var(--c4)','var(--c5)','var(--c6)','var(--c7)'];
-let view='timeline';
+let view='hunt';
 let treePath='';
 let selectedPath='README.md';
 let treeRows=[];
 let focusIdx=-1;
-const titles={timeline:'Timeline',map:'Blame Map',pr:'PR Travel',ghosts:'Ghost authors',why:'Suspects',heatmap:'Ownership',blast:'Co-changes',hotspots:'Hotspots',stale:'Stale files',contributors:'Contributors',churn:'Weekly churn'};
+const titles={hunt:'Bug Hunt',timeline:'Timeline',map:'Blame Map',dig:'Archaeology',pairs:'Fix↔Break',pr:'PR Travel',ghosts:'Ghost authors',why:'Suspects',heatmap:'Ownership',blast:'Co-changes',hotspots:'Hotspots',stale:'Stale files',contributors:'Contributors',churn:'Weekly churn'};
 
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function pins(){try{return JSON.parse(localStorage.getItem('tf_pins')||'[]')}catch{return[]}}
@@ -288,6 +292,16 @@ async function openRemote(repair){
 
 document.getElementById('btnOpen').onclick=()=>openRemote(false);
 document.getElementById('btnRepair').onclick=()=>openRemote(true);
+document.getElementById('btnUpdate').onclick=async()=>{
+  document.getElementById('out').innerHTML='<div class="empty">Updating from remote…</div>';
+  try{
+    const r=await fetch('/api/update',{method:'POST'});
+    const d=await r.json();
+    if(d.error) throw new Error(d.error);
+    await info(); await loadTree(treePath); await run();
+    alert(d.message||'updated');
+  }catch(e){alert(e.message||e)}
+};
 document.getElementById('btnPin').onclick=()=>{
   if(!selectedPath) return;
   const p=pins();
@@ -304,7 +318,14 @@ async function run(){
   const out=document.getElementById('out');
   out.innerHTML='<div class="empty">Loading…</div>';
   try{
-    if(view==='timeline'){
+    if(view==='hunt'){
+      const qq=document.getElementById('query').value.trim()||selectedPath||'fix';
+      const d=await fetch('/api/hunt?q='+encodeURIComponent(qq)+'&path='+path).then(r=>r.json());
+      if(d.error) throw new Error(d.error);
+      out.innerHTML=`<div class="meta">${esc(d.summary)}</div>`+
+        (d.hits||[]).map(h=>`<div class="event" style="cursor:pointer" data-p="${esc(h.path||'')}" data-kind="${esc(h.kind)}"><div class="h"><span class="score">${h.score}</span> [${esc(h.kind)}] ${esc(h.title)}</div><div class="s">${esc(h.detail)}</div>${h.path?`<div class="meta">→ ${esc(h.path)}</div>`:''}</div>`).join('')||'<div class="empty">No hits — try another keyword</div>';
+      out.querySelectorAll('[data-p]').forEach(e=>e.onclick=()=>{if(e.dataset.p){setSelected(e.dataset.p);setView(e.dataset.kind==='blame-map'?'map':'timeline')}});
+    } else if(view==='timeline'){
       const d=await fetch('/api/timeline?path='+path).then(r=>r.json());
       if(d.error) throw new Error(d.error);
       out.innerHTML=`<div class="meta">${esc(d.path)} · ${d.total_commits} commits · follow renames</div>`+
@@ -335,6 +356,20 @@ async function run(){
         (d.ghosts||[]).map(g=>`<div class="event"><div class="h risk-${esc(g.risk)}">[${esc(g.risk)}] ${esc(g.author)} · silent ${g.days_silent}d · last ${esc(g.last_commit)} · ${g.owned_files} files</div><div class="s">${esc((g.sample_paths||[]).join(' · '))}</div></div>`).join('')||'<div class="empty">No ghosts — everyone still active</div>'+
         ((d.path_risks||[]).length?`<div class="meta" style="margin-top:.8rem">Path bus factor</div>`+(d.path_risks||[]).map(p=>`<div class="event" style="cursor:pointer" data-p="${esc(p.path)}"><div class="h">bus~${p.bus_factor} · ${esc(p.top_author)} ${p.top_percent.toFixed(0)}%</div><div class="s">${esc(p.path)}</div>${p.warning?`<div class="warn">${esc(p.warning)}</div>`:''}</div>`).join(''):'');
       out.querySelectorAll('[data-p]').forEach(e=>e.onclick=()=>{setSelected(e.dataset.p);setView('map')});
+    } else if(view==='dig'){
+      const qq=document.getElementById('query').value.trim();
+      if(!qq){out.innerHTML='<div class="empty">Enter a code pattern to dig (e.g. promisor, unwrap!, GIT_NO_LAZY)</div>';return}
+      const d=await fetch('/api/dig?q='+encodeURIComponent(qq)).then(r=>r.json());
+      if(d.error) throw new Error(d.error);
+      out.innerHTML=`<div class="meta">${esc(d.summary)}</div>`+
+        (d.events||[]).map(e=>`<div class="event" style="cursor:pointer" data-p="${esc((e.files||[])[0]||'')}"><div class="h">[${esc(e.kind)}] ${esc(e.commit.short)} · ${esc(e.commit.date)} · ${esc(e.commit.author)}</div><div class="s">${esc(e.commit.subject)}</div><div class="meta">${esc((e.files||[]).join(' · '))}</div></div>`).join('')||'<div class="empty">Pattern never seen in history</div>';
+      out.querySelectorAll('[data-p]').forEach(e=>e.onclick=()=>{if(e.dataset.p){setSelected(e.dataset.p);setView('timeline')}});
+    } else if(view==='pairs'){
+      const d=await fetch('/api/pairs').then(r=>r.json());
+      if(d.error) throw new Error(d.error);
+      out.innerHTML=`<div class="meta">${esc(d.summary)}</div>`+
+        (d.pairs||[]).map(p=>`<div class="event" style="cursor:pointer" data-p="${esc((p.shared_files||[])[0]||'')}"><div class="h"><span class="score">${p.confidence}</span> fix ${esc(p.fix.short)} — ${esc(p.fix.subject)}</div>${p.break_commit?`<div class="s">break ${esc(p.break_commit.short)} · ${esc(p.break_commit.subject)}</div>`:''}<div class="meta">${esc(p.note)} · ${esc((p.shared_files||[]).join(', '))}</div></div>`).join('')||'<div class="empty">No fix/break pairs found</div>';
+      out.querySelectorAll('[data-p]').forEach(e=>e.onclick=()=>{if(e.dataset.p){setSelected(e.dataset.p);setView('timeline')}});
     } else if(view==='why'){
       const d=await fetch('/api/why?path='+path+'&q='+q).then(r=>r.json());
       if(d.error) throw new Error(d.error);
@@ -388,6 +423,9 @@ document.addEventListener('keydown',e=>{
   else if(e.key==='p'){setView('pr');e.preventDefault()}
   else if(e.key==='t'){setView('timeline');e.preventDefault()}
   else if(e.key==='g'){setView('ghosts');e.preventDefault()}
+  else if(e.key==='h'){setView('hunt');e.preventDefault()}
+  else if(e.key==='u'){document.getElementById('btnUpdate').click();e.preventDefault()}
+  else if(e.key==='d'){setView('dig');e.preventDefault()}
 });
 
 (function boot(){
