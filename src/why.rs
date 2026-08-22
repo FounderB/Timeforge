@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use serde::Serialize;
 
-use crate::git::{self, CommitInfo};
+use crate::git::{self, CommitInfo, PRETTY_COMMIT};
 use crate::Repo;
 
 #[derive(Debug, Clone, Serialize)]
@@ -31,7 +31,7 @@ pub fn why_broke(
     let mut args = vec![
         "log".to_string(),
         format!("--since={since}"),
-        "--pretty=format:%H|%an|%ae|%ad|%s".to_string(),
+        format!("--pretty=format:{PRETTY_COMMIT}"),
         "--date=short".to_string(),
         "-n".to_string(),
         format!("{}", limit.saturating_mul(6).clamp(20, 48)),
@@ -44,32 +44,10 @@ pub fn why_broke(
 
     let arg_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
     let out = git::git_in(repo.path(), &arg_refs)?;
-
-    let mut suspects = Vec::new();
-    let mut current: Option<CommitInfo> = None;
-    let mut files: Vec<String> = Vec::new();
-
-    for line in out.lines() {
-        if line.is_empty() {
-            if let Some(c) = current.take() {
-                suspects.push(score_commit(c, &files, keyword));
-                files.clear();
-            }
-            continue;
-        }
-        if let Some(c) = git::parse_log_line(line) {
-            if let Some(prev) = current.take() {
-                suspects.push(score_commit(prev, &files, keyword));
-                files.clear();
-            }
-            current = Some(c);
-        } else if !line.contains('|') {
-            files.push(line.to_string());
-        }
-    }
-    if let Some(c) = current {
-        suspects.push(score_commit(c, &files, keyword));
-    }
+    let mut suspects: Vec<Suspect> = git::parse_name_only_log(&out)
+        .into_iter()
+        .map(|(c, files)| score_commit(c, &files, keyword))
+        .collect();
 
     suspects.sort_by(|a, b| b.score.cmp(&a.score));
     suspects.retain(|s| s.score > 0);
@@ -80,7 +58,7 @@ pub fn why_broke(
         query,
         path_filter: path.map(|s| s.to_string()),
         suspects,
-        hint: "Higher score = likelier culprit. Re-run tests on the top commit: git checkout <hash> && cargo test".into(),
+        hint: "Scores prefer keyword/path causality — fix/revert commits are down-ranked as culprits.".into(),
     })
 }
 
@@ -88,76 +66,87 @@ fn score_commit(commit: CommitInfo, files: &[String], keyword: Option<&str>) -> 
     let mut score = if keyword.map(|k| !k.trim().is_empty()).unwrap_or(false) {
         0u32
     } else {
-        10u32
+        8u32
     };
     let mut reasons = Vec::new();
-
     let subj = commit.subject.to_lowercase();
-    for word in ["fix", "bug", "hotfix", "break", "revert", "wip", "temp", "hack"] {
+
+    // Repair commits are outcomes, not root causes — down-rank as culprits.
+    let is_repair = ["fix", "hotfix", "revert", "patch", "correct", "typo"]
+        .iter()
+        .any(|w| subj.contains(w));
+    if is_repair {
+        score = score.saturating_sub(12);
+        reasons.push("repair-like subject (down-ranked as culprit)".into());
+    }
+
+    // Risky *change* language (not "we fixed it")
+    for word in ["wip", "temp", "hack", "todo", "workaround", "break", "oops", "experimental"] {
         if subj.contains(word) {
-            score += 15;
-            reasons.push(format!("subject contains `{word}`"));
+            score += 12;
+            reasons.push(format!("risky subject token `{word}`"));
         }
     }
+
     if let Some(kw) = keyword {
         let k = kw.trim().to_lowercase();
         if !k.is_empty() {
             let mut matched = false;
             if subj.contains(&k) {
-                score += 30;
+                score += 28;
                 reasons.push(format!("subject matches `{kw}`"));
                 matched = true;
             }
             if files.iter().any(|f| f.to_lowercase().contains(&k)) {
-                score += 20;
+                score += 22;
                 reasons.push(format!("path matches `{kw}`"));
                 matched = true;
             }
-            // Soft boost if keyword appears as token in subject words
             if !matched {
                 for part in k.split(|c: char| !c.is_alphanumeric()) {
-                    if part.len() >= 3 && subj.contains(part) {
-                        score += 18;
-                        reasons.push(format!("subject token `{part}`"));
+                    if part.len() >= 3 && (subj.contains(part) || files.iter().any(|f| f.to_lowercase().contains(part))) {
+                        score += 16;
+                        reasons.push(format!("token `{part}`"));
                         matched = true;
                         break;
                     }
                 }
             }
-            if !matched {
-                // Keep a tiny score only for fix-like commits so they can still surface.
-                if score == 0 {
-                    return Suspect {
-                        commit,
-                        score: 0,
-                        reasons: vec!["no keyword match".into()],
-                        files_touched: files.iter().take(12).cloned().collect(),
-                    };
-                }
+            if !matched && score == 0 {
+                return Suspect {
+                    commit,
+                    score: 0,
+                    reasons: vec!["no keyword match".into()],
+                    files_touched: files.iter().take(12).cloned().collect(),
+                };
             }
         }
     }
+
     if files.len() > 12 {
-        score += 10;
-        reasons.push(format!("large blast ({} files)", files.len()));
+        score += 8;
+        reasons.push(format!("wide blast ({} files)", files.len()));
     } else if files.len() == 1 {
-        score += 5;
-        reasons.push("single-file change (easy to isolate)".into());
+        score += 6;
+        reasons.push("single-file change".into());
     }
+
     for f in files {
         let fl = f.to_lowercase();
         if fl.contains("auth")
             || fl.contains("security")
             || fl.contains("crypto")
             || fl.contains("payment")
+            || fl.contains("wallet")
         {
-            score += 12;
-            reasons.push(format!("touches sensitive path `{f}`"));
+            score += 14;
+            reasons.push(format!("sensitive path `{f}`"));
             break;
         }
     }
+
     if reasons.is_empty() {
-        reasons.push("recent change in scope".into());
+        reasons.push("in scope".into());
     }
 
     let mut files_touched = files.to_vec();

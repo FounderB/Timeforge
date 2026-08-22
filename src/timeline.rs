@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use crate::git::{self, CommitInfo};
+use crate::git::{self, CommitInfo, PRETTY_COMMIT};
 use crate::Repo;
 
 #[derive(Debug, Clone, Serialize)]
@@ -27,14 +27,13 @@ pub fn file_timeline(repo: &Repo, path: &str, limit: usize) -> Result<Timeline, 
         git::rel_path(repo.path(), std::path::Path::new(path))?
     };
 
-    let fmt = "%H|%an|%ae|%ad|%s";
     // Prefer numstat + rename follow; fall back if promisor/offline clone can't fetch blobs.
     let with_stat = git::git_in(
         repo.path(),
         &[
             "log",
             "--follow",
-            &format!("--pretty=format:{fmt}"),
+            &format!("--pretty=format:{PRETTY_COMMIT}"),
             "--date=short",
             &format!("-n{limit}"),
             "--numstat",
@@ -49,7 +48,7 @@ pub fn file_timeline(repo: &Repo, path: &str, limit: usize) -> Result<Timeline, 
             &[
                 "log",
                 "--follow",
-                &format!("--pretty=format:{fmt}"),
+                &format!("--pretty=format:{PRETTY_COMMIT}"),
                 "--date=short",
                 &format!("-n{limit}"),
                 "--",
@@ -61,7 +60,7 @@ pub fn file_timeline(repo: &Repo, path: &str, limit: usize) -> Result<Timeline, 
                 repo.path(),
                 &[
                     "log",
-                    &format!("--pretty=format:{fmt}"),
+                    &format!("--pretty=format:{PRETTY_COMMIT}"),
                     "--date=short",
                     &format!("-n{limit}"),
                     "--",

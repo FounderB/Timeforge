@@ -1,3 +1,11 @@
+## 0.5.2 — Causality over keywords
+
+- Safe `git log` delimiter (`\\x1f`) — subjects with `|` no longer break parsing
+- Shared `parse_log_line` / `parse_name_only_log` across modules
+- **why**: fix/bug/wip-in-subject ≠ culprit; repair commits down-ranked
+- **fix↔break**: pickaxe on removed hunks + blame of pre-fix lines (co-change is weak fallback)
+- CLI Ask-first: `timeforge ask …` / bare `timeforge "…"`; power tools hidden from help
+
 ## 0.5.1 — Brand + dark scrollbars
 
 - Official icon (`assets/timeforge-icon.png`) in UI, favicon, README

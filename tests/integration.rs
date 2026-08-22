@@ -53,12 +53,71 @@ fn timeline_has_events() {
 }
 
 #[test]
-fn why_ranks_hotfix() {
+fn why_downranks_fix_as_culprit() {
     let dir = seed_repo();
     let repo = timeforge::Repo::discover(dir.path()).unwrap();
     let w = timeforge::why_broke(&repo, Some("src"), "10 years ago", Some("auth"), 5).unwrap();
     assert!(!w.suspects.is_empty());
-    assert!(w.suspects[0].score >= w.suspects.last().unwrap().score);
+    let fix = w
+        .suspects
+        .iter()
+        .find(|s| s.commit.subject.to_lowercase().contains("fix"));
+    let add = w
+        .suspects
+        .iter()
+        .find(|s| s.commit.subject.to_lowercase().contains("add auth"));
+    if let (Some(fix), Some(add)) = (fix, add) {
+        assert!(
+            add.score >= fix.score,
+            "introduce should outrank repair: add={} fix={}",
+            add.score,
+            fix.score
+        );
+        assert!(
+            fix.reasons.iter().any(|r| r.contains("down-ranked")),
+            "fix should be marked down-ranked"
+        );
+    }
+}
+
+#[test]
+fn fix_break_uses_pickaxe() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    git(root, &["init"]);
+    git(root, &["config", "user.email", "dev@example.com"]);
+    git(root, &["config", "user.name", "Dev"]);
+    write(root, "src/pay.rs", "fn charge() { ok() }\n");
+    git(root, &["add", "."]);
+    git(root, &["commit", "-m", "scaffold"]);
+    write(
+        root,
+        "src/pay.rs",
+        "fn charge() { UNIQUE_BUG_MARKER_XYZ(); }\n",
+    );
+    git(root, &["add", "."]);
+    git(root, &["commit", "-m", "add payment path"]);
+    write(root, "src/pay.rs", "fn charge() { ok() }\n");
+    git(root, &["add", "."]);
+    git(root, &["commit", "-m", "fix payment regression"]);
+
+    let repo = timeforge::Repo::discover(root).unwrap();
+    let p = timeforge::fix_break_pairs(&repo, "10 years ago", 5).unwrap();
+    assert!(!p.pairs.is_empty());
+    let top = &p.pairs[0];
+    assert!(top.fix.subject.to_lowercase().contains("fix"));
+    assert!(
+        top.method == "pickaxe" || top.method == "blame",
+        "expected hunk causality, got {}",
+        top.method
+    );
+    let br = top.break_commit.as_ref().expect("break commit");
+    assert!(
+        br.subject.to_lowercase().contains("add payment")
+            || br.subject.to_lowercase().contains("payment"),
+        "break subject was {}",
+        br.subject
+    );
 }
 
 #[test]

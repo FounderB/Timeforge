@@ -47,11 +47,13 @@ git clone https://github.com/FounderB/Timeforge.git
 cd Timeforge && cargo build --release
 
 # one question
-./target/release/timeforge hunt --query unwrap
+./target/release/timeforge ask unwrap
+# or bare:
+./target/release/timeforge "unwrap"
 
 # any GitHub repo
 ./target/release/timeforge open rust-lang/mdBook
-./target/release/timeforge --repo rust-lang/mdBook hunt --query panic
+./target/release/timeforge --repo rust-lang/mdBook ask panic
 
 # UI — Ask box + explorer
 ./target/release/timeforge serve
@@ -62,13 +64,13 @@ cd Timeforge && cargo build --release
 
 ---
 
-## Ask mode (v0.5)
+## Ask mode (v0.5.2)
 
 ```bash
-timeforge hunt --query promisor     # ~10ms local answer
-timeforge hunt --query '#42'        # PR fast path
+timeforge ask promisor              # ~10ms local answer
+timeforge "#42"                     # PR fast path
 timeforge dig unsafe                # archaeology: first / last seen
-timeforge pairs                     # fix ↔ break
+timeforge pairs                     # fix ↔ break (hunk/-S causality)
 timeforge map src/main.rs           # blame zones
 timeforge update                    # fetch in the same folder
 timeforge repair                    # materialize missing objects in place

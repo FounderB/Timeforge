@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use crate::git::{self, CommitInfo};
+use crate::git::{self, CommitInfo, PRETTY_COMMIT};
 use crate::Repo;
 
 #[derive(Debug, Clone, Serialize)]
@@ -44,7 +44,7 @@ pub fn pr_travel(repo: &Repo, query: &str, later_limit: usize) -> Result<PrTrave
         &[
             "log",
             "--all",
-            "--pretty=format:%H|%an|%ae|%ad|%s",
+            &format!("--pretty=format:{PRETTY_COMMIT}"),
             "--date=short",
             "-i",
             "--grep",
@@ -115,7 +115,7 @@ pub fn pr_travel(repo: &Repo, query: &str, later_limit: usize) -> Result<PrTrave
         let mut args: Vec<String> = vec![
             "log".into(),
             format!("{}..HEAD", commit.hash),
-            "--pretty=format:%H|%an|%ae|%ad|%s".into(),
+            format!("--pretty=format:{PRETTY_COMMIT}"),
             "--date=short".into(),
             format!("-n{}", later_limit.max(5) * 3),
             "--name-only".into(),
@@ -126,18 +126,12 @@ pub fn pr_travel(repo: &Repo, query: &str, later_limit: usize) -> Result<PrTrave
         }
         let refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
         if let Ok(log) = git::git_in(repo.path(), &refs) {
-            let mut cur: Option<CommitInfo> = None;
-            for line in log.lines() {
-                if line.is_empty() {
-                    continue;
-                }
-                if let Some(c) = git::parse_log_line(line) {
-                    cur = Some(c);
-                } else if let Some(c) = &cur {
+            for (c, files) in git::parse_name_only_log(&log) {
+                for line in files {
                     if sample.iter().any(|p| *p == line) && later.len() < later_limit {
                         later.push(LaterTouch {
                             commit: c.clone(),
-                            path: line.to_string(),
+                            path: line,
                         });
                     }
                 }

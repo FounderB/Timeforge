@@ -11,7 +11,8 @@ use timeforge::{
 #[derive(Parser)]
 #[command(
     name = "timeforge",
-    about = "Repo Time Machine — local or any GitHub repo",
+    about = "Repo Time Machine — ask what broke, who owns it, when it changed",
+    after_help = "Ask first:\n  timeforge ask \"auth panic\"\n  timeforge \"#42\"\n  timeforge ask --path src/auth.rs login\n\nHidden power tools still work: timeline, blame, dig, pairs, why, …",
     version,
     author = "FounderB"
 )]
@@ -24,12 +25,28 @@ struct Cli {
     #[arg(long, global = true)]
     update: bool,
 
+    /// Bare ask without subcommand: timeforge "stack line or keyword"
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+    query: Vec<String>,
+
     #[command(subcommand)]
-    cmd: Commands,
+    cmd: Option<Commands>,
 }
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Ask one thing — keyword, stack line, #PR, or path
+    Ask {
+        /// Free-form question tokens
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        query: Vec<String>,
+        #[arg(long)]
+        path: Option<PathBuf>,
+        #[arg(long, default_value = "180 days ago")]
+        since: String,
+        #[arg(long)]
+        json: bool,
+    },
     /// Open / cache a GitHub repo (owner/repo or URL)
     Open {
         spec: String,
@@ -57,7 +74,14 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
-    /// Time Machine — commit history for a file (rename-aware)
+    /// Local web UI
+    Serve {
+        #[arg(long, default_value = "127.0.0.1:8790")]
+        addr: String,
+    },
+
+    // —— power tools (hidden from default help; still callable) ——
+    #[command(hide = true)]
     Timeline {
         path: PathBuf,
         #[arg(long, default_value_t = 30)]
@@ -65,7 +89,7 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
-    /// Blame+ — ownership of a file
+    #[command(hide = true)]
     Blame {
         path: PathBuf,
         #[arg(long, default_value_t = 40)]
@@ -73,13 +97,13 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
-    /// Blame Map — ownership zones across a file
+    #[command(hide = true)]
     Map {
         path: PathBuf,
         #[arg(long)]
         json: bool,
     },
-    /// PR Time Travel — files + later churn for #N
+    #[command(hide = true)]
     Pr {
         query: String,
         #[arg(long, default_value_t = 12)]
@@ -87,7 +111,7 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
-    /// Ghost authors + path bus-factor risks
+    #[command(hide = true)]
     Ghosts {
         #[arg(long, default_value_t = 180)]
         days: i64,
@@ -96,7 +120,7 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
-    /// Bug archaeology — when a code pattern first appeared (git pickaxe)
+    #[command(hide = true)]
     Dig {
         pattern: String,
         #[arg(long, default_value_t = 20)]
@@ -104,7 +128,7 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
-    /// Fix ↔ break pairs
+    #[command(hide = true)]
     Pairs {
         #[arg(long, default_value = "365 days ago")]
         since: String,
@@ -113,19 +137,8 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
-    /// Bug hunt / regression radar — combined suspects + dig + pairs
+    #[command(hide = true, alias = "radar")]
     Hunt {
-        #[arg(long, help = "keyword, stack fragment, test name")]
-        query: Option<String>,
-        #[arg(long)]
-        path: Option<PathBuf>,
-        #[arg(long, default_value = "180 days ago")]
-        since: String,
-        #[arg(long)]
-        json: bool,
-    },
-    /// Alias for hunt
-    Radar {
         #[arg(long)]
         query: Option<String>,
         #[arg(long)]
@@ -135,19 +148,20 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
-    /// Why did it break? — rank likely culprit commits
+    #[command(hide = true)]
     Why {
         #[arg(long)]
         path: Option<PathBuf>,
         #[arg(long, default_value = "90 days ago")]
         since: String,
-        #[arg(long, help = "Keyword: test name, module, error text")]
+        #[arg(long)]
         query: Option<String>,
         #[arg(long, default_value_t = 8)]
         limit: usize,
         #[arg(long)]
         json: bool,
     },
+    #[command(hide = true)]
     Heatmap {
         #[arg(long, default_value = "180 days ago")]
         since: String,
@@ -156,6 +170,7 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
+    #[command(hide = true)]
     Blast {
         path: PathBuf,
         #[arg(long, default_value_t = 15)]
@@ -163,6 +178,7 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
+    #[command(hide = true)]
     Hotspots {
         #[arg(long, default_value = "180 days ago")]
         since: String,
@@ -171,6 +187,7 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
+    #[command(hide = true)]
     Stale {
         #[arg(long, default_value_t = 180)]
         days: i64,
@@ -179,6 +196,7 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
+    #[command(hide = true)]
     Contributors {
         #[arg(long, default_value = "365 days ago")]
         since: String,
@@ -187,21 +205,19 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
+    #[command(hide = true)]
     Churn {
         #[arg(long, default_value = "365 days ago")]
         since: String,
         #[arg(long)]
         json: bool,
     },
+    #[command(hide = true)]
     Tree {
         #[arg(default_value = "")]
         path: String,
         #[arg(long)]
         json: bool,
-    },
-    Serve {
-        #[arg(long, default_value = "127.0.0.1:8790")]
-        addr: String,
     },
 }
 
@@ -216,11 +232,11 @@ fn run() -> Result<(), String> {
     let cli = Cli::parse();
 
     match &cli.cmd {
-        Commands::Open {
+        Some(Commands::Open {
             spec,
             update,
             repair,
-        } => {
+        }) => {
             let (owner, name) = remote::parse_github_spec(spec)?;
             let repo = if *repair {
                 repair_cache(&owner, &name)?
@@ -229,16 +245,22 @@ fn run() -> Result<(), String> {
             };
             println!("opened {}/{}", owner, name);
             println!("path  {}", repo.path().display());
-            println!("tip   timeforge --repo {}/{} timeline README.md", owner, name);
+            println!("tip   timeforge --repo {}/{} ask \"…\"", owner, name);
             return Ok(());
         }
-        Commands::Repos { json } => {
+        Some(Commands::Repos { json }) => {
             let list = list_cached()?;
             if *json {
                 report::print_json(&list);
             } else {
                 report::print_cached(&list);
             }
+            return Ok(());
+        }
+        None if cli.query.is_empty() => {
+            use clap::CommandFactory;
+            Cli::command().print_help().ok();
+            println!();
             return Ok(());
         }
         _ => {}
@@ -258,8 +280,28 @@ fn run() -> Result<(), String> {
     };
 
     match cli.cmd {
-        Commands::Open { .. } | Commands::Repos { .. } => unreachable!(),
-        Commands::Update { json } => {
+        None => {
+            let q = cli.query.join(" ");
+            let h = bug_hunt(&repo, &q, None, "180 days ago")?;
+            report::print_hunt(&h);
+        }
+        Some(Commands::Ask {
+            query,
+            path,
+            since,
+            json,
+        }) => {
+            let q = query.join(" ");
+            let p = path.as_ref().map(|p| p.to_string_lossy().to_string());
+            let h = bug_hunt(&repo, &q, p.as_deref(), &since)?;
+            if json {
+                report::print_json(&h);
+            } else {
+                report::print_hunt(&h);
+            }
+        }
+        Some(Commands::Open { .. }) | Some(Commands::Repos { .. }) => unreachable!(),
+        Some(Commands::Update { json }) => {
             let u = update_repo(&repo)?;
             if json {
                 report::print_json(&u);
@@ -273,7 +315,7 @@ fn run() -> Result<(), String> {
                 }
             }
         }
-        Commands::Repair { json } => {
+        Some(Commands::Repair { json }) => {
             let u = repair_current(&repo)?;
             if json {
                 report::print_json(&u);
@@ -284,7 +326,7 @@ fn run() -> Result<(), String> {
                 println!("HEAD    {} → {}", u.before, u.after);
             }
         }
-        Commands::Timeline { path, limit, json } => {
+        Some(Commands::Timeline { path, limit, json }) => {
             let t = file_timeline(&repo, &path.to_string_lossy(), limit)?;
             if json {
                 report::print_json(&t);
@@ -292,7 +334,7 @@ fn run() -> Result<(), String> {
                 report::print_timeline(&t);
             }
         }
-        Commands::Blame { path, lines, json } => {
+        Some(Commands::Blame { path, lines, json }) => {
             let b = file_blame(&repo, &path.to_string_lossy(), lines)?;
             if json {
                 report::print_json(&b);
@@ -300,7 +342,7 @@ fn run() -> Result<(), String> {
                 report::print_blame(&b);
             }
         }
-        Commands::Map { path, json } => {
+        Some(Commands::Map { path, json }) => {
             let m = blame_map(&repo, &path.to_string_lossy())?;
             if json {
                 report::print_json(&m);
@@ -308,7 +350,7 @@ fn run() -> Result<(), String> {
                 report::print_blame_map(&m);
             }
         }
-        Commands::Pr { query, later, json } => {
+        Some(Commands::Pr { query, later, json }) => {
             let p = pr_travel(&repo, &query, later)?;
             if json {
                 report::print_json(&p);
@@ -316,7 +358,7 @@ fn run() -> Result<(), String> {
                 report::print_pr(&p);
             }
         }
-        Commands::Ghosts { days, limit, json } => {
+        Some(Commands::Ghosts { days, limit, json }) => {
             let g = ghost_authors(&repo, days, limit)?;
             if json {
                 report::print_json(&g);
@@ -324,11 +366,11 @@ fn run() -> Result<(), String> {
                 report::print_ghosts(&g);
             }
         }
-        Commands::Dig {
+        Some(Commands::Dig {
             pattern,
             limit,
             json,
-        } => {
+        }) => {
             let d = dig_pattern(&repo, &pattern, limit)?;
             if json {
                 report::print_json(&d);
@@ -336,11 +378,11 @@ fn run() -> Result<(), String> {
                 report::print_dig(&d);
             }
         }
-        Commands::Pairs {
+        Some(Commands::Pairs {
             since,
             limit,
             json,
-        } => {
+        }) => {
             let p = fix_break_pairs(&repo, &since, limit)?;
             if json {
                 report::print_json(&p);
@@ -348,18 +390,12 @@ fn run() -> Result<(), String> {
                 report::print_pairs(&p);
             }
         }
-        Commands::Hunt {
+        Some(Commands::Hunt {
             query,
             path,
             since,
             json,
-        }
-        | Commands::Radar {
-            query,
-            path,
-            since,
-            json,
-        } => {
+        }) => {
             let p = path.as_ref().map(|p| p.to_string_lossy().to_string());
             let q = query.unwrap_or_default();
             let h = bug_hunt(&repo, &q, p.as_deref(), &since)?;
@@ -369,13 +405,13 @@ fn run() -> Result<(), String> {
                 report::print_hunt(&h);
             }
         }
-        Commands::Why {
+        Some(Commands::Why {
             path,
             since,
             query,
             limit,
             json,
-        } => {
+        }) => {
             let p = path.as_ref().map(|p| p.to_string_lossy().to_string());
             let w = why_broke(&repo, p.as_deref(), &since, query.as_deref(), limit)?;
             if json {
@@ -384,7 +420,7 @@ fn run() -> Result<(), String> {
                 report::print_why(&w);
             }
         }
-        Commands::Heatmap { since, path, json } => {
+        Some(Commands::Heatmap { since, path, json }) => {
             let p = path.as_ref().map(|p| p.to_string_lossy().to_string());
             let h = ownership_heatmap(&repo, &since, p.as_deref())?;
             if json {
@@ -393,7 +429,7 @@ fn run() -> Result<(), String> {
                 report::print_heatmap(&h);
             }
         }
-        Commands::Blast { path, limit, json } => {
+        Some(Commands::Blast { path, limit, json }) => {
             let b = blast_radius(&repo, &path.to_string_lossy(), limit)?;
             if json {
                 report::print_json(&b);
@@ -401,7 +437,7 @@ fn run() -> Result<(), String> {
                 report::print_blast(&b);
             }
         }
-        Commands::Hotspots { since, limit, json } => {
+        Some(Commands::Hotspots { since, limit, json }) => {
             let h = file_hotspots(&repo, &since, limit)?;
             if json {
                 report::print_json(&h);
@@ -409,7 +445,7 @@ fn run() -> Result<(), String> {
                 report::print_hotspots(&h);
             }
         }
-        Commands::Stale { days, limit, json } => {
+        Some(Commands::Stale { days, limit, json }) => {
             let s = stale_files(&repo, days, limit)?;
             if json {
                 report::print_json(&s);
@@ -417,7 +453,7 @@ fn run() -> Result<(), String> {
                 report::print_stale(&s);
             }
         }
-        Commands::Contributors { since, limit, json } => {
+        Some(Commands::Contributors { since, limit, json }) => {
             let c = contributors(&repo, &since, limit)?;
             if json {
                 report::print_json(&c);
@@ -425,7 +461,7 @@ fn run() -> Result<(), String> {
                 report::print_contributors(&c);
             }
         }
-        Commands::Churn { since, json } => {
+        Some(Commands::Churn { since, json }) => {
             let c = commit_churn(&repo, &since)?;
             if json {
                 report::print_json(&c);
@@ -433,7 +469,7 @@ fn run() -> Result<(), String> {
                 report::print_churn(&c);
             }
         }
-        Commands::Tree { path, json } => {
+        Some(Commands::Tree { path, json }) => {
             let t = list_tree(&repo, &path)?;
             if json {
                 report::print_json(&t);
@@ -450,7 +486,7 @@ fn run() -> Result<(), String> {
                 }
             }
         }
-        Commands::Serve { addr } => {
+        Some(Commands::Serve { addr }) => {
             timeforge::web::serve(&addr, repo.path())?;
         }
     }

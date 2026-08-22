@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use crate::git::{self, CommitInfo};
+use crate::git::{self, CommitInfo, PRETTY_COMMIT};
 use crate::Repo;
 
 #[derive(Debug, Clone, Serialize)]
@@ -10,6 +10,8 @@ pub struct FixBreakPair {
     pub shared_files: Vec<String>,
     pub confidence: u32,
     pub note: String,
+    /// pickaxe | blame | cochange
+    pub method: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -18,200 +20,327 @@ pub struct FixBreakReport {
     pub summary: String,
 }
 
-/// Find fix/revert commits and the earlier change on the same paths that likely broke things.
+/// Pair fix/revert commits with the commit that *introduced* the code the fix removed.
+///
+/// Causality: extract removed hunks from the fix → `git log -S` for when that text appeared.
 pub fn fix_break_pairs(repo: &Repo, since: &str, limit: usize) -> Result<FixBreakReport, String> {
     let out = git::git_in(
         repo.path(),
         &[
             "log",
             &format!("--since={since}"),
-            "--pretty=format:%H|%an|%ae|%ad|%s",
+            &format!("--pretty=format:{PRETTY_COMMIT}"),
             "--date=short",
             "-i",
             "-E",
             "--grep",
             "fix|bug|hotfix|revert|regress|patch",
             "-n",
-            "60",
+            "40",
             "--name-only",
         ],
     )?;
 
-    let mut fixes: Vec<(CommitInfo, Vec<String>)> = Vec::new();
-    let mut current: Option<CommitInfo> = None;
-    let mut files: Vec<String> = Vec::new();
-
-    for line in out.lines() {
-        if line.is_empty() {
-            if let Some(c) = current.take() {
-                if is_fixish(&c.subject) {
-                    fixes.push((c, std::mem::take(&mut files)));
-                } else {
-                    files.clear();
-                }
-            }
-            continue;
-        }
-        if let Some(c) = git::parse_log_line(line) {
-            if let Some(prev) = current.take() {
-                if is_fixish(&prev.subject) {
-                    fixes.push((prev, std::mem::take(&mut files)));
-                } else {
-                    files.clear();
-                }
-            }
-            current = Some(c);
-        } else if !line.contains('|') {
-            files.push(line.to_string());
-        }
-    }
-    if let Some(c) = current {
-        if is_fixish(&c.subject) {
-            fixes.push((c, files));
-        }
-    }
+    let fixes: Vec<(CommitInfo, Vec<String>)> = git::parse_name_only_log(&out)
+        .into_iter()
+        .filter(|(c, _)| is_fixish(&c.subject))
+        .collect();
 
     let mut pairs = Vec::new();
     for (fix, touched) in fixes {
         if pairs.len() >= limit {
             break;
         }
-        let sample: Vec<String> = touched.into_iter().take(8).collect();
-        if sample.is_empty() {
-            pairs.push(FixBreakPair {
-                fix,
-                break_commit: None,
-                shared_files: vec![],
-                confidence: 20,
-                note: "fix-like commit with no file list".into(),
-            });
-            continue;
-        }
-
-        let mut args: Vec<String> = vec![
-            "log".into(),
-            format!("{}^", fix.hash),
-            "--pretty=format:%H|%an|%ae|%ad|%s".into(),
-            "--date=short".into(),
-            "-n".into(),
-            "40".into(),
-            "--".into(),
-        ];
-        for p in &sample {
-            args.push(p.clone());
-        }
-        let refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        let earlier = git::git_in(repo.path(), &refs).unwrap_or_default();
-
-        let mut best: Option<(CommitInfo, u32, Vec<String>)> = None;
-        let mut cur: Option<CommitInfo> = None;
-        let mut cur_files: Vec<String> = Vec::new();
-
-        for line in earlier.lines().chain(std::iter::once("")) {
-            if line.is_empty() {
-                if let Some(c) = cur.take() {
-                    if c.hash == fix.hash {
-                        cur_files.clear();
-                        continue;
-                    }
-                    let shared: Vec<String> = cur_files
-                        .iter()
-                        .filter(|f| sample.iter().any(|s| s == *f))
-                        .cloned()
-                        .collect();
-                    cur_files.clear();
-                    if shared.is_empty() {
-                        continue;
-                    }
-                    let mut conf = 30 + shared.len() as u32 * 8;
-                    let subj = c.subject.to_lowercase();
-                    if ["wip", "hack", "temp", "break", "refactor", "oops"]
-                        .iter()
-                        .any(|w| subj.contains(w))
-                    {
-                        conf += 15;
-                    }
-                    if is_fixish(&c.subject) {
-                        conf = conf.saturating_sub(20);
-                    }
-                    match &best {
-                        Some((_, b, _)) if *b >= conf => {}
-                        _ => best = Some((c, conf, shared)),
-                    }
-                }
-                continue;
-            }
-            if let Some(c) = git::parse_log_line(line) {
-                // flush previous before switching
-                if cur.is_some() {
-                    // re-process flush by pushing empty - simpler: handle below
-                    let prev = cur.take().unwrap();
-                    let shared: Vec<String> = cur_files
-                        .iter()
-                        .filter(|f| sample.iter().any(|s| s == *f))
-                        .cloned()
-                        .collect();
-                    cur_files.clear();
-                    if !shared.is_empty() && prev.hash != fix.hash {
-                        let mut conf = 30 + shared.len() as u32 * 8;
-                        let subj = prev.subject.to_lowercase();
-                        if ["wip", "hack", "temp", "break", "refactor", "oops"]
-                            .iter()
-                            .any(|w| subj.contains(w))
-                        {
-                            conf += 15;
-                        }
-                        if is_fixish(&prev.subject) {
-                            conf = conf.saturating_sub(20);
-                        }
-                        match &best {
-                            Some((_, b, _)) if *b >= conf => {}
-                            _ => best = Some((prev, conf, shared)),
-                        }
-                    }
-                }
-                cur = Some(c);
-            } else if !line.contains('|') {
-                cur_files.push(line.to_string());
-            }
-        }
-
-        if let Some((break_c, conf, shared)) = best {
-            pairs.push(FixBreakPair {
-                note: format!(
-                    "likely break on {} shared path(s) before fix",
-                    shared.len()
-                ),
-                fix,
-                break_commit: Some(break_c),
-                shared_files: shared,
-                confidence: conf.min(99),
-            });
-        } else {
-            pairs.push(FixBreakPair {
-                fix,
-                break_commit: None,
-                shared_files: sample,
-                confidence: 25,
-                note: "fix found; no clear earlier culprit on same paths".into(),
-            });
-        }
+        let pair = resolve_break(repo, &fix, &touched);
+        pairs.push(pair);
     }
 
     pairs.sort_by(|a, b| b.confidence.cmp(&a.confidence));
 
     let summary = format!(
-        "{} fix↔break pairs · {} with a likely culprit",
+        "{} fix↔break · {} via pickaxe/blame · {} weak",
         pairs.len(),
-        pairs.iter().filter(|p| p.break_commit.is_some()).count()
+        pairs
+            .iter()
+            .filter(|p| p.break_commit.is_some() && p.method != "cochange")
+            .count(),
+        pairs
+            .iter()
+            .filter(|p| p.method == "cochange" || p.break_commit.is_none())
+            .count()
     );
 
     Ok(FixBreakReport { pairs, summary })
 }
 
+fn resolve_break(repo: &Repo, fix: &CommitInfo, touched: &[String]) -> FixBreakPair {
+    // 1) Pickaxe on removed hunk text
+    if let Some((brk, files, needle)) = pickaxe_introducer(repo, &fix.hash) {
+        return FixBreakPair {
+            fix: fix.clone(),
+            break_commit: Some(brk),
+            shared_files: files,
+            confidence: 88,
+            note: format!("introduced code later removed by fix (−S `{needle}`)"),
+            method: "pickaxe".into(),
+        };
+    }
+
+    // 2) Blame parent version of first touched file around changed lines
+    if let Some((brk, file)) = blame_parent_touch(repo, &fix.hash, touched) {
+        return FixBreakPair {
+            fix: fix.clone(),
+            break_commit: Some(brk),
+            shared_files: vec![file],
+            confidence: 70,
+            note: "blame on pre-fix lines points at this commit".into(),
+            method: "blame".into(),
+        };
+    }
+
+    // 3) Weak fallback: recent co-change (explicitly low confidence)
+    if let Some((brk, shared)) = weak_cochange(repo, &fix.hash, touched) {
+        return FixBreakPair {
+            fix: fix.clone(),
+            break_commit: Some(brk),
+            shared_files: shared,
+            confidence: 35,
+            note: "weak co-change heuristic — not hunk-proven".into(),
+            method: "cochange".into(),
+        };
+    }
+
+    FixBreakPair {
+        fix: fix.clone(),
+        break_commit: None,
+        shared_files: touched.iter().take(8).cloned().collect(),
+        confidence: 15,
+        note: "fix found; could not attribute introducer".into(),
+        method: "none".into(),
+    }
+}
+
+fn pickaxe_introducer(
+    repo: &Repo,
+    fix_hash: &str,
+) -> Option<(CommitInfo, Vec<String>, String)> {
+    let diff = git::git_in(
+        repo.path(),
+        &["show", "--format=", "--unified=0", fix_hash],
+    )
+    .ok()?;
+    let needles = extract_removed_needles(&diff);
+    for needle in needles.into_iter().take(6) {
+        let range = format!("{fix_hash}^");
+        let log = git::git_in(
+            repo.path(),
+            &[
+                "log",
+                "-S",
+                &needle,
+                &format!("--pretty=format:{PRETTY_COMMIT}"),
+                "--date=short",
+                "--reverse",
+                "-n",
+                "8",
+                &range,
+            ],
+        )
+        .unwrap_or_default();
+        let mut first: Option<CommitInfo> = None;
+        let mut files = Vec::new();
+        for line in log.lines() {
+            if let Some(c) = git::parse_log_line(line) {
+                if first.is_none() {
+                    first = Some(c);
+                }
+            } else if first.is_some() && !line.is_empty() && !line.contains('\x1f') {
+                if !files.contains(&line.to_string()) {
+                    files.push(line.to_string());
+                }
+            }
+        }
+        // Prefer reverse log without name-only — get files via show
+        if let Some(c) = first {
+            let shown = git::git_in(
+                repo.path(),
+                &[
+                    "show",
+                    "--pretty=format:",
+                    "--name-only",
+                    "--",
+                    &c.hash,
+                ],
+            )
+            .unwrap_or_default();
+            let mut f: Vec<String> = shown
+                .lines()
+                .filter(|l| !l.is_empty())
+                .map(|s| s.to_string())
+                .collect();
+            if f.is_empty() {
+                f = files;
+            }
+            let preview: String = needle.chars().take(48).collect();
+            return Some((c, f, preview));
+        }
+    }
+    None
+}
+
+fn extract_removed_needles(diff: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    for line in diff.lines() {
+        if !line.starts_with('-') || line.starts_with("---") {
+            continue;
+        }
+        let body = line[1..].trim();
+        if body.len() < 12 || body.len() > 120 {
+            continue;
+        }
+        if body.starts_with("//") || body.starts_with('#') || body.starts_with('*') {
+            continue;
+        }
+        // Skip pure punctuation / import noise
+        let alnum = body.chars().filter(|c| c.is_alphanumeric()).count();
+        if alnum < 8 {
+            continue;
+        }
+        out.push(body.to_string());
+    }
+    // Prefer longer, more distinctive lines
+    out.sort_by(|a, b| b.len().cmp(&a.len()));
+    out.dedup();
+    out
+}
+
+fn blame_parent_touch(
+    repo: &Repo,
+    fix_hash: &str,
+    touched: &[String],
+) -> Option<(CommitInfo, String)> {
+    let file = touched.first()?;
+    let parent = format!("{fix_hash}^");
+    // Which lines changed in this file?
+    let diff = git::git_in(
+        repo.path(),
+        &[
+            "show",
+            "--format=",
+            "--unified=0",
+            fix_hash,
+            "--",
+            file,
+        ],
+    )
+    .ok()?;
+    let mut line_no: Option<u32> = None;
+    for l in diff.lines() {
+        // @@ -12,0 +12,2 @@  or @@ -12 +12 @@
+        if let Some(rest) = l.strip_prefix("@@ ") {
+            if let Some(minus) = rest.split_whitespace().next() {
+                let n = minus
+                    .trim_start_matches('-')
+                    .split(',')
+                    .next()
+                    .and_then(|s| s.parse().ok());
+                if let Some(n) = n {
+                    if n > 0 {
+                        line_no = Some(n);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    let ln = line_no.unwrap_or(1);
+    let blame = git::git_in(
+        repo.path(),
+        &[
+            "blame",
+            "-L",
+            &format!("{ln},+1"),
+            "--line-porcelain",
+            &parent,
+            "--",
+            file,
+        ],
+    )
+    .ok()?;
+    let mut hash = String::new();
+    let mut author = String::new();
+    let mut date = String::new();
+    let mut subject = String::new();
+    for l in blame.lines() {
+        if l.len() >= 40 && l.as_bytes().iter().take(40).all(|b| b.is_ascii_hexdigit()) {
+            hash = l.split_whitespace().next()?.to_string();
+        } else if let Some(a) = l.strip_prefix("author ") {
+            author = a.to_string();
+        } else if let Some(t) = l.strip_prefix("author-time ") {
+            if let Ok(ts) = t.parse::<i64>() {
+                date = chrono::DateTime::from_timestamp(ts, 0)
+                    .map(|d| d.format("%Y-%m-%d").to_string())
+                    .unwrap_or_default();
+            }
+        } else if let Some(s) = l.strip_prefix("summary ") {
+            subject = s.to_string();
+        }
+    }
+    if hash.is_empty() || hash.chars().all(|c| c == '0') {
+        return None;
+    }
+    Some((
+        CommitInfo {
+            short: hash.chars().take(8).collect(),
+            hash,
+            author,
+            email: String::new(),
+            date,
+            subject,
+        },
+        file.clone(),
+    ))
+}
+
+fn weak_cochange(
+    repo: &Repo,
+    fix_hash: &str,
+    touched: &[String],
+) -> Option<(CommitInfo, Vec<String>)> {
+    let sample: Vec<&str> = touched.iter().take(6).map(|s| s.as_str()).collect();
+    if sample.is_empty() {
+        return None;
+    }
+    let mut args: Vec<String> = vec![
+        "log".into(),
+        format!("{fix_hash}^"),
+        format!("--pretty=format:{PRETTY_COMMIT}"),
+        "--date=short".into(),
+        "-n".into(),
+        "15".into(),
+        "--name-only".into(),
+        "--".into(),
+    ];
+    for p in &sample {
+        args.push((*p).to_string());
+    }
+    let refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+    let earlier = git::git_in(repo.path(), &refs).ok()?;
+    let rows = git::parse_name_only_log(&earlier);
+    let (c, files) = rows.into_iter().next()?;
+    let shared: Vec<String> = files
+        .into_iter()
+        .filter(|f| sample.iter().any(|s| s == f))
+        .collect();
+    if shared.is_empty() {
+        return None;
+    }
+    Some((c, shared))
+}
+
 fn is_fixish(subject: &str) -> bool {
     let s = subject.to_lowercase();
-    ["fix", "bug", "hotfix", "revert", "regress", "patch", "correct"]
+    ["fix", "bug", "hotfix", "revert", "regress", "patch"]
         .iter()
         .any(|w| s.contains(w))
 }

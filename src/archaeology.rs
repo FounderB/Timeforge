@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use crate::git::{self, CommitInfo};
+use crate::git::{self, CommitInfo, PRETTY_COMMIT};
 use crate::Repo;
 
 #[derive(Debug, Clone, Serialize)]
@@ -33,7 +33,7 @@ pub fn dig_pattern(repo: &Repo, pattern: &str, limit: usize) -> Result<Archaeolo
             "log",
             "-S",
             pat,
-            "--pretty=format:%H|%an|%ae|%ad|%s",
+            &format!("--pretty=format:{PRETTY_COMMIT}"),
             "--date=short",
             &format!("-n{}", limit.max(5)),
             "--name-only",
@@ -46,7 +46,7 @@ pub fn dig_pattern(repo: &Repo, pattern: &str, limit: usize) -> Result<Archaeolo
                 "log",
                 "-G",
                 &regex_escape(pat),
-                "--pretty=format:%H|%an|%ae|%ad|%s",
+                &format!("--pretty=format:{PRETTY_COMMIT}"),
                 "--date=short",
                 &format!("-n{}", limit.max(5)),
                 "--name-only",
@@ -54,31 +54,10 @@ pub fn dig_pattern(repo: &Repo, pattern: &str, limit: usize) -> Result<Archaeolo
         )
     })?;
 
-    let mut events = Vec::new();
-    let mut current: Option<CommitInfo> = None;
-    let mut files: Vec<String> = Vec::new();
-
-    for line in out.lines() {
-        if line.is_empty() {
-            if let Some(c) = current.take() {
-                events.push(make_event(c, &files));
-                files.clear();
-            }
-            continue;
-        }
-        if let Some(c) = git::parse_log_line(line) {
-            if let Some(prev) = current.take() {
-                events.push(make_event(prev, &files));
-                files.clear();
-            }
-            current = Some(c);
-        } else if !line.contains('|') {
-            files.push(line.to_string());
-        }
-    }
-    if let Some(c) = current {
-        events.push(make_event(c, &files));
-    }
+    let events: Vec<DigEvent> = git::parse_name_only_log(&out)
+        .into_iter()
+        .map(|(c, files)| make_event(c, &files))
+        .collect();
 
     // git log is newest-first
     let last = events.first().map(|e| e.commit.clone());
