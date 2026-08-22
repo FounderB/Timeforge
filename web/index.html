@@ -44,6 +44,16 @@ h1{font-size:1.55rem;letter-spacing:-.03em;font-weight:700}
 .answer .t{font-size:1.05rem;font-weight:700;color:var(--accent);line-height:1.35}
 .answer .d{font-size:.78rem;color:var(--muted);margin-top:.4rem}
 .answer .ms{float:right;font-size:.68rem;color:var(--muted)}
+.ev{display:inline-block;font-size:.62rem;text-transform:uppercase;letter-spacing:.08em;padding:.12rem .4rem;border-radius:4px;margin-right:.35rem;border:1px solid var(--line);color:var(--muted)}
+.ev.proven{color:#34d399;border-color:#34d39966}
+.ev.strong{color:var(--accent2);border-color:#38bdf866}
+.ev.heuristic{color:var(--warn);border-color:#fbbf2466}
+.ev.weak{color:var(--bad);border-color:#fb718566}
+.drills{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.65rem}
+.drill{font-size:.7rem;padding:.3rem .55rem;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer}
+.drill:hover{color:var(--text);border-color:var(--accent)}
+.tabs.more{opacity:.75;margin-top:-.35rem}
+.tabs.more .tab{font-size:.68rem;padding:.28rem .55rem}
 .chips{margin-bottom:.65rem;min-height:1.2rem}
 .chip{display:inline-flex;align-items:center;gap:.25rem;margin:.15rem .25rem .15rem 0;padding:.25rem .55rem;border-radius:999px;border:1px solid var(--line);font-size:.68rem;color:var(--muted);cursor:pointer}
 .chip:hover,.chip.on{color:var(--text);border-color:var(--accent)}
@@ -106,7 +116,7 @@ button.mini:hover{color:var(--text);border-color:var(--accent)}
       <div class="logo"><img src="/icon.png" alt="Timeforge" width="52" height="52"/></div>
       <div>
         <h1>Timeforge</h1>
-        <div class="tag">One question · fast hunt · FounderB <span class="kbd">Enter</span> <span class="kbd">u</span> <span id="netPill" class="net off">…</span></div>
+        <div class="tag">Ask → proof · FounderB <span class="kbd">Enter</span> <span class="kbd">u</span> <span id="netPill" class="net off">…</span></div>
       </div>
     </div>
     <div class="meta" id="repoInfo" style="margin:0;text-align:right">Loading…</div>
@@ -133,19 +143,21 @@ button.mini:hover{color:var(--text);border-color:var(--accent)}
   </div>
 
   <div class="tabs">
-    <button class="tab active" data-v="hunt">Bug Hunt</button>
-    <button class="tab" data-v="timeline">Time Machine</button>
-    <button class="tab" data-v="map">Blame Map</button>
-    <button class="tab" data-v="dig">Archaeology</button>
+    <button class="tab active" data-v="hunt">Ask</button>
+    <button class="tab" data-v="timeline">History</button>
+    <button class="tab" data-v="map">Blame</button>
+  </div>
+  <div class="tabs more">
+    <button class="tab" data-v="dig">When appeared</button>
     <button class="tab" data-v="pairs">Fix↔Break</button>
-    <button class="tab" data-v="pr">PR Travel</button>
+    <button class="tab" data-v="pr">PR</button>
+    <button class="tab" data-v="why">Suspects</button>
     <button class="tab" data-v="ghosts">Ghosts</button>
-    <button class="tab" data-v="why">Why broke</button>
-    <button class="tab" data-v="heatmap">Heatmap</button>
-    <button class="tab" data-v="blast">Blast</button>
     <button class="tab" data-v="hotspots">Hotspots</button>
     <button class="tab" data-v="stale">Stale</button>
-    <button class="tab" data-v="contributors">Contributors</button>
+    <button class="tab" data-v="heatmap">Owners</button>
+    <button class="tab" data-v="blast">Co-change</button>
+    <button class="tab" data-v="contributors">People</button>
     <button class="tab" data-v="churn">Churn</button>
   </div>
 
@@ -162,15 +174,15 @@ button.mini:hover{color:var(--text);border-color:var(--accent)}
       <input class="ctrl" id="path" value="README.md"/>
       <label>Keyword / PR # / pattern</label>
       <input class="ctrl" id="query" placeholder="promisor · unwrap · #12 · panic…"/>
-      <button class="primary" id="run">Run hunt</button>
+      <button class="primary" id="run">Ask</button>
       <button class="mini" id="btnPin">Pin path</button>
-      <p class="meta" style="margin-top:.85rem"><b>h</b> hunt · <b>u</b> update · <b>b</b> map · Dig finds first-seen code</p>
+      <p class="meta" style="margin-top:.85rem"><b>Enter</b> ask · <b>u</b> update · <b>t</b> history · <b>b</b> blame</p>
     </section>
 
     <section class="panel">
-      <h2 id="outTitle">Bug Hunt</h2>
+      <h2 id="outTitle">Ask</h2>
       <div id="selPath" class="path-pill" style="margin-bottom:.7rem">README.md</div>
-      <div id="out" class="empty">Pick a file and hit Run</div>
+      <div id="out" class="empty">Ask one question above</div>
     </section>
   </div>
 </div>
@@ -181,7 +193,7 @@ let treePath='';
 let selectedPath='README.md';
 let treeRows=[];
 let focusIdx=-1;
-const titles={hunt:'Bug Hunt',timeline:'Timeline',map:'Blame Map',dig:'Archaeology',pairs:'Fix↔Break',pr:'PR Travel',ghosts:'Ghost authors',why:'Suspects',heatmap:'Ownership',blast:'Co-changes',hotspots:'Hotspots',stale:'Stale files',contributors:'Contributors',churn:'Weekly churn'};
+const titles={hunt:'Ask',timeline:'History',map:'Blame',dig:'When appeared',pairs:'Fix↔Break',pr:'PR',ghosts:'Ghosts',why:'Suspects',heatmap:'Owners',blast:'Co-change',hotspots:'Hotspots',stale:'Stale',contributors:'People',churn:'Churn'};
 
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function pins(){try{return JSON.parse(localStorage.getItem('tf_pins')||'[]')}catch{return[]}}
@@ -425,13 +437,25 @@ async function run(){
       if(d.error) throw new Error(d.error);
       let html=`<div class="meta">${esc(d.summary)} · mode ${esc(d.mode||'fast')}</div>`;
       if(d.answer){
-        html+=`<div class="answer"><div class="k">Answer <span class="ms">${d.elapsed_ms||0}ms</span></div><div class="t">${esc(d.answer.headline)}</div><div class="d">${esc(d.answer.why)}</div>`;
+        const ev=d.answer.evidence||'heuristic';
+        html+=`<div class="answer"><div class="k"><span class="ev ${esc(ev)}">${esc(ev)}</span>${esc(d.answer.method||'')} · conf ${d.answer.confidence??d.answer.score??'—'} <span class="ms">${d.elapsed_ms||0}ms</span></div><div class="t">${esc(d.answer.headline)}</div><div class="d">${esc(d.answer.why)}</div>`;
         if(d.answer.commit||d.answer.path){html+=`<div class="d">${d.answer.commit?esc(d.answer.commit):''}${d.answer.path?' → '+esc(d.answer.path):''}</div>`}
+        if((d.answer.drilldowns||[]).length){
+          html+='<div class="drills">'+(d.answer.drilldowns||[]).map(dd=>`<button type="button" class="drill" data-dk="${esc(dd.kind)}" data-dp="${esc(dd.path||'')}" data-dq="${esc(dd.query||'')}">${esc(dd.label)}</button>`).join('')+'</div>';
+        }
         html+='</div>';
       }
-      html+=(d.hits||[]).map(h=>`<div class="event" style="cursor:pointer" data-p="${esc(h.path||'')}" data-kind="${esc(h.kind)}"><div class="h"><span class="score">${h.score}</span> [${esc(h.kind)}] ${esc(h.title)}</div><div class="s">${esc(h.detail)}</div>${h.path?`<div class="meta">→ ${esc(h.path)}</div>`:''}</div>`).join('')||'<div class="empty">No hits</div>';
+      html+=(d.hits||[]).map(h=>`<div class="event" style="cursor:pointer" data-p="${esc(h.path||'')}" data-kind="${esc(h.kind)}"><div class="h"><span class="score">${h.score}</span> <span class="ev ${esc(h.evidence||'')}">${esc(h.evidence||'')}</span> [${esc(h.kind)}] ${esc(h.title)}</div><div class="s">${esc(h.detail)}</div>${h.path?`<div class="meta">→ ${esc(h.path)}</div>`:''}</div>`).join('')||'<div class="empty">No hits</div>';
       out.innerHTML=html;
-      out.querySelectorAll('[data-p]').forEach(e=>e.onclick=()=>{if(e.dataset.p){setSelected(e.dataset.p);setView(e.dataset.kind&&e.dataset.kind.includes('pr')?'timeline':(e.dataset.kind==='blame-map'?'map':'timeline'))}});
+      out.querySelectorAll('.drill').forEach(btn=>{
+        btn.onclick=()=>{
+          if(btn.dataset.dp) setSelected(btn.dataset.dp);
+          if(btn.dataset.dq){document.getElementById('query').value=btn.dataset.dq;document.getElementById('askBox').value=btn.dataset.dq}
+          const k=btn.dataset.dk||'timeline';
+          setView(k==='timeline'||k==='map'||k==='dig'||k==='pairs'?k:'timeline');
+        };
+      });
+      out.querySelectorAll('.event[data-p]').forEach(e=>e.onclick=()=>{if(e.dataset.p){setSelected(e.dataset.p);setView(e.dataset.kind&&e.dataset.kind.includes('pr')?'timeline':(e.dataset.kind==='blame-map'?'map':'timeline'))}});
     } else if(view==='timeline'){
       const d=await fetch('/api/timeline?path='+path).then(r=>r.json());
       if(d.error) throw new Error(d.error);
@@ -475,7 +499,7 @@ async function run(){
       const d=await fetch('/api/pairs').then(r=>r.json());
       if(d.error) throw new Error(d.error);
       out.innerHTML=`<div class="meta">${esc(d.summary)}</div>`+
-        (d.pairs||[]).map(p=>`<div class="event" style="cursor:pointer" data-p="${esc((p.shared_files||[])[0]||'')}"><div class="h"><span class="score">${p.confidence}</span> fix ${esc(p.fix.short)} — ${esc(p.fix.subject)}</div>${p.break_commit?`<div class="s">break ${esc(p.break_commit.short)} · ${esc(p.break_commit.subject)}</div>`:''}<div class="meta">${esc(p.note)} · ${esc((p.shared_files||[]).join(', '))}</div></div>`).join('')||'<div class="empty">No fix/break pairs found</div>';
+        (d.pairs||[]).map(p=>`<div class="event" style="cursor:pointer" data-p="${esc((p.shared_files||[])[0]||'')}"><div class="h"><span class="score">${p.confidence}</span> <span class="ev ${esc(p.method==='pickaxe'?'proven':p.method==='blame'?'strong':'weak')}">${esc(p.method||'')}</span> fix ${esc(p.fix.short)} — ${esc(p.fix.subject)}</div>${p.break_commit?`<div class="s">break ${esc(p.break_commit.short)} · ${esc(p.break_commit.subject)}</div>`:''}<div class="meta">${esc(p.note)} · ${esc((p.shared_files||[]).join(', '))}</div></div>`).join('')||'<div class="empty">No fix/break pairs found</div>';
       out.querySelectorAll('[data-p]').forEach(e=>e.onclick=()=>{if(e.dataset.p){setSelected(e.dataset.p);setView('timeline')}});
     } else if(view==='why'){
       const d=await fetch('/api/why?path='+path+'&q='+q).then(r=>r.json());

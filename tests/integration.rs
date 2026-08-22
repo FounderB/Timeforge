@@ -205,7 +205,9 @@ fn hunt_ranks_auth_and_ignores_garbage() {
     let repo = timeforge::Repo::discover(dir.path()).unwrap();
     let good = timeforge::bug_hunt(&repo, "auth", Some("src"), "10 years ago").unwrap();
     assert!(!good.hits.is_empty());
-    assert!(good.answer.is_some());
+    let a = good.answer.expect("answer");
+    assert!(!a.evidence.is_empty());
+    assert!(!a.method.is_empty());
     assert!(good.elapsed_ms < 30_000);
     assert!(
         good.hits.iter().any(|h| h.score >= 25),
@@ -229,9 +231,60 @@ fn hunt_pr_fast_path() {
     let repo = timeforge::Repo::discover(dir.path()).unwrap();
     let h = timeforge::bug_hunt(&repo, "#12", None, "10 years ago").unwrap();
     assert_eq!(h.mode, "pr-fast");
-    assert!(h.answer.is_some());
+    let a = h.answer.expect("answer");
+    assert_eq!(a.method, "pr");
+    assert_eq!(a.evidence, "strong");
     assert!(h.pr.is_some());
     assert!(h.elapsed_ms < 10_000);
+}
+
+#[test]
+fn hunt_answer_prefers_dig_for_code_token() {
+    let dir = seed_repo();
+    let repo = timeforge::Repo::discover(dir.path()).unwrap();
+    let h = timeforge::bug_hunt(&repo, "login", None, "10 years ago").unwrap();
+    let a = h.answer.expect("answer");
+    assert_eq!(a.method, "dig");
+    assert!(a.evidence == "proven" || a.evidence == "strong");
+    assert!(a
+        .drilldowns
+        .iter()
+        .any(|d| d.kind == "dig" || d.kind == "timeline"));
+}
+
+#[test]
+fn hunt_answer_prefers_pickaxe_on_bug_ask() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    git(root, &["init"]);
+    git(root, &["config", "user.email", "dev@example.com"]);
+    git(root, &["config", "user.name", "Dev"]);
+    write(root, "src/pay.rs", "fn charge() { ok() }\n");
+    git(root, &["add", "."]);
+    git(root, &["commit", "-m", "scaffold"]);
+    write(
+        root,
+        "src/pay.rs",
+        "fn charge() { UNIQUE_BUG_MARKER_XYZ(); }\n",
+    );
+    git(root, &["add", "."]);
+    git(root, &["commit", "-m", "add payment path"]);
+    write(root, "src/pay.rs", "fn charge() { ok() }\n");
+    git(root, &["add", "."]);
+    git(root, &["commit", "-m", "fix payment regression"]);
+
+    let repo = timeforge::Repo::discover(root).unwrap();
+    let h = timeforge::bug_hunt(&repo, "payment panic", None, "10 years ago").unwrap();
+    let a = h.answer.expect("answer");
+    assert!(
+        a.method == "pickaxe" || a.method == "blame" || a.method == "dig",
+        "got method={} evidence={}",
+        a.method,
+        a.evidence
+    );
+    if a.method == "pickaxe" {
+        assert_eq!(a.evidence, "proven");
+    }
 }
 
 #[test]

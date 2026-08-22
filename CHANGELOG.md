@@ -1,3 +1,10 @@
+## 0.5.3 — Ask answers with proof
+
+- ANSWER carries `evidence` (proven/strong/heuristic/weak), `method`, `confidence`, drill-downs
+- Prefer pickaxe/blame fix↔break and dig first-seen over subject heuristics
+- Weak co-change pairs never become the Ask answer
+- UI: Ask / History / Blame primary; power tools demoted; evidence badges + drill buttons
+
 ## 0.5.2 — Causality over keywords
 
 - Safe `git log` delimiter (`\\x1f`) — subjects with `|` no longer break parsing

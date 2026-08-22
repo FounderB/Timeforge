@@ -187,9 +187,10 @@ pub fn print_pairs(p: &FixBreakReport) {
     println!("{}\n  {}\n", "FIX ↔ BREAK".bold().red(), p.summary.dimmed());
     for (i, pair) in p.pairs.iter().enumerate() {
         println!(
-            "  {:>2}. conf {}  fix {} — {}",
+            "  {:>2}. conf {}  [{}] fix {} — {}",
             i + 1,
             format!("{:>2}", pair.confidence).yellow(),
+            pair.method.cyan(),
             pair.fix.short.green(),
             pair.fix.subject
         );
@@ -213,7 +214,7 @@ pub fn print_hunt(h: &HuntReport) {
     banner();
     println!(
         "{}\n  {} · {}ms · mode {}\n",
-        "BUG HUNT / REGRESSION RADAR".bold().red(),
+        "ASK".bold().red(),
         h.summary.dimmed(),
         h.elapsed_ms,
         h.mode.cyan()
@@ -221,6 +222,12 @@ pub fn print_hunt(h: &HuntReport) {
     if let Some(a) = &h.answer {
         println!("{}", "ANSWER".bold().underline());
         println!("  {}", a.headline.green().bold());
+        println!(
+            "  [{}] {} · confidence {}",
+            a.evidence.yellow().bold(),
+            a.method.cyan(),
+            a.confidence
+        );
         println!("  {}", a.why.dimmed());
         if let Some(c) = &a.commit {
             println!("  commit {}", c.yellow());
@@ -228,12 +235,19 @@ pub fn print_hunt(h: &HuntReport) {
         if let Some(p) = &a.path {
             println!("  path   {}", p.yellow());
         }
+        if !a.drilldowns.is_empty() {
+            println!("  {}", "drill-down".bold());
+            for d in &a.drilldowns {
+                println!("    · {} ({})", d.label, d.kind.dimmed());
+            }
+        }
         println!();
     }
     for hit in &h.hits {
         println!(
-            "  {:>3}  [{:^10}] {}",
+            "  {:>3}  [{:^7}] [{:^10}] {}",
             hit.score.to_string().yellow(),
+            hit.evidence.dimmed(),
             hit.kind.cyan(),
             hit.title
         );

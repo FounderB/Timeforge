@@ -64,10 +64,10 @@ cd Timeforge && cargo build --release
 
 ---
 
-## Ask mode (v0.5.2)
+## Ask mode (v0.5.3)
 
 ```bash
-timeforge ask promisor              # ~10ms local answer
+timeforge ask promisor              # proven dig / pickaxe when possible
 timeforge "#42"                     # PR fast path
 timeforge dig unsafe                # archaeology: first / last seen
 timeforge pairs                     # fix ↔ break (hunk/-S causality)
@@ -82,10 +82,10 @@ Global: `--repo <path|owner/repo|url>` · `--update`
 
 ## Features
 
-1. **Bug Hunt / Radar** — parallel why ∥ dig ∥ pairs · `ANSWER` + `elapsed_ms`  
-2. **Ask UI** — one field, Enter, online/offline pill  
+1. **Ask** — one answer with `evidence` · `method` · `confidence` · drill-downs  
+2. **Proof over keywords** — pickaxe/blame & dig beat subject heuristics  
 3. **Archaeology** — `git log -S` birth certificate for a pattern  
-4. **Fix↔Break** — link hotfixes to earlier culprits  
+4. **Fix↔Break** — link hotfixes to earlier culprits (weak co-change never wins Ask)  
 5. **Blame Map** — ownership color strip  
 6. **PR Time Travel** — files + later touches  
 7. **Ghost authors** — silent owners + path bus-factor  
