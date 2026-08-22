@@ -7,8 +7,8 @@ use tiny_http::{Header, Method, Response, Server};
 use crate::{
     blame_map, blast_radius, bug_hunt, commit_churn, contributors, dig_pattern, file_blame,
     file_hotspots, file_timeline, fix_break_pairs, ghost_authors, list_cached, list_tree_ex,
-    open_github, ownership_heatmap, pr_travel, remote, repair_cache, stale_files, update_repo,
-    why_broke, Repo,
+    open_github, ownership_heatmap, pr_travel, remote, repair_cache, repair_current, stale_files,
+    update_repo, why_broke, Repo,
 };
 
 const INDEX: &str = include_str!("../../web/index.html");
@@ -55,10 +55,12 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
 
         if url == "/api/info" {
             let repo = state.lock().unwrap();
+            let partial = crate::git::is_partial_clone(repo.path());
             let body = json!({
                 "repo": repo.path().display().to_string(),
                 "product": "Timeforge",
                 "version": env!("CARGO_PKG_VERSION"),
+                "partial": partial,
             })
             .to_string();
             let _ = request.respond(respond(200, &body, "application/json"));
@@ -134,6 +136,29 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
             let repo = state.lock().unwrap();
             match update_repo(&repo) {
                 Ok(u) => {
+                    let body = serde_json::to_string_pretty(&u).unwrap_or_default();
+                    let _ = request.respond(respond(200, &body, "application/json"));
+                }
+                Err(e) => {
+                    let _ = request.respond(respond(
+                        400,
+                        &json!({"error": e}).to_string(),
+                        "application/json",
+                    ));
+                }
+            }
+            continue;
+        }
+
+        if url == "/api/repair" && method == Method::Post {
+            let path = state.lock().unwrap().path().to_path_buf();
+            match repair_current(&Repo {
+                root: path.clone(),
+            }) {
+                Ok(u) => {
+                    if let Ok(repo) = Repo::discover(&path) {
+                        *state.lock().unwrap() = repo;
+                    }
                     let body = serde_json::to_string_pretty(&u).unwrap_or_default();
                     let _ = request.respond(respond(200, &body, "application/json"));
                 }

@@ -29,7 +29,9 @@ pub use heatmap::ownership_heatmap;
 pub use hotspots::file_hotspots;
 pub use hunt::{bug_hunt, regression_radar};
 pub use pr::pr_travel;
-pub use remote::{list_cached, open_github, repair_cache, resolve_repo, update_repo};
+pub use remote::{
+    list_cached, open_github, repair_cache, repair_current, resolve_repo, update_repo,
+};
 pub use stale::stale_files;
 pub use timeline::file_timeline;
 pub use tree::{list_tree, list_tree_ex};

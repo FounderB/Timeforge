@@ -32,9 +32,9 @@ pub fn open_github(
         git::harden_local_clone(&cache);
         if force_update {
             eprintln!("Timeforge: fetching updates for {owner}/{name}…");
-            match git::git_in(&cache, &["fetch", "--all", "--prune"]) {
+            match git::git_network_in(&cache, &["fetch", "--all", "--prune"]) {
                 Ok(_) => {
-                    let _ = git::git_in(&cache, &["pull", "--ff-only"]);
+                    let _ = git::git_network_in(&cache, &["pull", "--ff-only"]);
                 }
                 Err(e) => eprintln!("Timeforge: fetch skipped ({e}) — using cached copy"),
             }
@@ -149,24 +149,32 @@ pub fn repair_cache(owner: &str, name: &str) -> Result<Repo, String> {
     open_github(owner, name, false, true)
 }
 
-/// Fetch + ff-pull the current repo (update to latest remote).
+/// Fetch + ff-pull the current repo; materialize partial clones when needed.
 pub fn update_repo(repo: &Repo) -> Result<UpdateResult, String> {
     let path = repo.path();
-    git::harden_local_clone(path);
-
     let before = git::git_in(path, &["rev-parse", "--short", "HEAD"])
         .unwrap_or_else(|_| "?".into())
         .trim()
         .to_string();
 
-    let remote = git::git_in(path, &["remote"]).unwrap_or_default();
+    let remote = git::git_network_in(path, &["remote"]).unwrap_or_default();
     if remote.trim().is_empty() {
         return Ok(UpdateResult {
             ok: true,
             before: before.clone(),
             after: before,
             message: "no remotes configured — local-only repo".into(),
+            partial: false,
         });
+    }
+
+    let mut notes = Vec::new();
+    let partial = git::is_partial_clone(path);
+    if partial {
+        match git::materialize_partial(path) {
+            Ok(m) => notes.push(m),
+            Err(e) => notes.push(format!("materialize soft-fail: {e}")),
+        }
     }
 
     git::git_network_in(path, &["fetch", "--all", "--prune"])?;
@@ -180,7 +188,7 @@ pub fn update_repo(repo: &Repo) -> Result<UpdateResult, String> {
     let message = match pull {
         Ok(out) => {
             let t = out.trim();
-            if before == after {
+            let core = if before == after {
                 if t.is_empty() || t.contains("Already up to date") {
                     "already up to date".into()
                 } else {
@@ -188,11 +196,20 @@ pub fn update_repo(repo: &Repo) -> Result<UpdateResult, String> {
                 }
             } else {
                 format!("updated {before} → {after}")
+            };
+            if notes.is_empty() {
+                core
+            } else {
+                format!("{core} · {}", notes.join(" · "))
             }
         }
         Err(e) => {
             if before != after {
                 format!("fetched; pull note: {e}")
+            } else if partial {
+                return Err(format!(
+                    "partial clone still missing objects ({e}). Use Repair clone."
+                ));
             } else {
                 return Err(format!("update failed: {e}"));
             }
@@ -204,6 +221,93 @@ pub fn update_repo(repo: &Repo) -> Result<UpdateResult, String> {
         before,
         after,
         message,
+        partial: git::is_partial_clone(path),
+    })
+}
+
+/// Re-clone the currently open repo from its origin (fixes broken promisor caches).
+pub fn repair_current(repo: &Repo) -> Result<UpdateResult, String> {
+    let path = repo.path().to_path_buf();
+    let before = git::git_in(&path, &["rev-parse", "--short", "HEAD"])
+        .unwrap_or_else(|_| "?".into())
+        .trim()
+        .to_string();
+
+    let url = git::git_network_in(&path, &["remote", "get-url", "origin"])
+        .map_err(|_| {
+            "no origin remote — open with timeforge open owner/repo --repair".to_string()
+        })?
+        .trim()
+        .to_string();
+
+    // Fast path: materialize in place
+    if let Ok(msg) = git::materialize_partial(&path) {
+        // Verify a cheap history command works
+        if git::git_in(&path, &["log", "-1", "--oneline"]).is_ok() {
+            let after = git::git_in(&path, &["rev-parse", "--short", "HEAD"])
+                .unwrap_or(before.clone())
+                .trim()
+                .to_string();
+            return Ok(UpdateResult {
+                ok: true,
+                before,
+                after,
+                message: format!("repaired in place · {msg}"),
+                partial: git::is_partial_clone(&path),
+            });
+        }
+    }
+
+    // Full re-clone into the same directory
+    let parent = path
+        .parent()
+        .ok_or_else(|| "cannot determine parent of repo".to_string())?
+        .to_path_buf();
+    let name = path
+        .file_name()
+        .ok_or_else(|| "cannot determine repo folder name".to_string())?
+        .to_string_lossy()
+        .into_owned();
+    let tmp = parent.join(format!(".tf-repair-{name}"));
+    let _ = fs::remove_dir_all(&tmp);
+
+    eprintln!("Timeforge: full re-clone of {url}");
+    let status = Command::new("git")
+        .args([
+            "clone",
+            "--single-branch",
+            &url,
+            &tmp.display().to_string(),
+        ])
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .status()
+        .map_err(|e| format!("git clone failed: {e}"))?;
+    if !status.success() {
+        let _ = fs::remove_dir_all(&tmp);
+        return Err(format!("failed to re-clone {url}"));
+    }
+
+    let backup = parent.join(format!(".tf-old-{name}"));
+    let _ = fs::remove_dir_all(&backup);
+    fs::rename(&path, &backup).map_err(|e| e.to_string())?;
+    if let Err(e) = fs::rename(&tmp, &path) {
+        let _ = fs::rename(&backup, &path);
+        return Err(format!("swap failed: {e}"));
+    }
+    let _ = fs::remove_dir_all(&backup);
+    git::harden_local_clone(&path);
+
+    let after = git::git_in(&path, &["rev-parse", "--short", "HEAD"])
+        .unwrap_or_else(|_| before.clone())
+        .trim()
+        .to_string();
+
+    Ok(UpdateResult {
+        ok: true,
+        before,
+        after: after.clone(),
+        message: format!("full re-clone complete · HEAD {after}"),
+        partial: false,
     })
 }
 
@@ -213,4 +317,5 @@ pub struct UpdateResult {
     pub before: String,
     pub after: String,
     pub message: String,
+    pub partial: bool,
 }

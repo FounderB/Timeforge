@@ -1,3 +1,12 @@
+## 0.4.1 — Promisor harden + pin × fix
+
+- Pin unpin works (× is a real button; stopPropagation)
+- `git_in` retries with network lazy-fetch when objects missing
+- Partial clones no longer force-broken by harden; Update materializes objects
+- `timeforge repair` / `/api/repair` re-clones current repo from origin
+- UI: partial-clone banner + error CTAs (Update / Repair)
+- Open-with-Update uses network fetch correctly
+
 ## 0.4.0 — Bug Hunt · Archaeology · Update
 
 - **Bug Hunt / Radar** (`hunt` / `radar`) — suspects + dig + fix↔break + ghosts in one shot

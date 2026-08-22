@@ -28,7 +28,13 @@ h1{font-size:1.55rem;letter-spacing:-.03em;font-weight:700}
 .chips{margin-bottom:.65rem;min-height:1.2rem}
 .chip{display:inline-flex;align-items:center;gap:.25rem;margin:.15rem .25rem .15rem 0;padding:.25rem .55rem;border-radius:999px;border:1px solid var(--line);font-size:.68rem;color:var(--muted);cursor:pointer}
 .chip:hover,.chip.on{color:var(--text);border-color:var(--accent)}
-.chip .x{opacity:.5}
+.chip .x{opacity:.7;margin-left:.35rem;padding:.15rem .4rem;border-radius:4px;font-weight:700;line-height:1;background:transparent;border:none;color:inherit;cursor:pointer;font:inherit}
+.chip .x:hover{opacity:1;background:#fb718533;color:var(--bad)}
+.errbox{margin:.4rem 0;padding:.7rem .8rem;border-radius:10px;border:1px solid #fb718544;background:#fb718511;color:#fecdd3;font-size:.78rem}
+.errbox button{margin-top:.5rem;margin-right:.4rem;border:none;border-radius:8px;padding:.4rem .7rem;font-weight:700;cursor:pointer;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#062018;font-size:.72rem}
+.banner{margin-bottom:.75rem;padding:.55rem .75rem;border-radius:10px;border:1px solid #fbbf2444;background:#fbbf2414;color:var(--warn);font-size:.75rem;display:none}
+.banner.show{display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap}
+.banner button{border:1px solid #fbbf2466;background:transparent;color:var(--warn);border-radius:8px;padding:.35rem .65rem;cursor:pointer;font-weight:600;font-size:.72rem}
 .tabs{display:flex;gap:.35rem;margin-bottom:1rem;flex-wrap:wrap}
 .tab{border:1px solid var(--line);background:transparent;color:var(--muted);padding:.4rem .75rem;border-radius:999px;cursor:pointer;font-size:.72rem;font-weight:600}
 .tab.active{color:#062018;background:linear-gradient(135deg,var(--accent),var(--accent2));border-color:transparent}
@@ -95,6 +101,13 @@ button.mini:hover{color:var(--text);border-color:var(--accent)}
   </div>
   <div class="chips" id="cached"></div>
   <div class="chips" id="pins"></div>
+  <div class="banner" id="partialBanner">
+    <span>This clone is partial (promisor) — some history views need a full fetch.</span>
+    <span>
+      <button type="button" id="btnBannerUpdate">Update objects</button>
+      <button type="button" id="btnBannerRepair">Repair clone</button>
+    </span>
+  </div>
 
   <div class="tabs">
     <button class="tab active" data-v="hunt">Bug Hunt</button>
@@ -154,15 +167,41 @@ function renderPins(){
   const el=document.getElementById('pins');
   const list=pins();
   if(!list.length){el.innerHTML='';return}
-  el.innerHTML='<span class="meta" style="margin-right:.4rem">Pinned</span>'+list.map(p=>`<span class="chip on" data-p="${esc(p)}">${esc(p)} <span class="x" data-x="${esc(p)}">×</span></span>`).join('');
-  el.querySelectorAll('.chip').forEach(c=>{
-    c.onclick=e=>{
-      if(e.target.dataset.x){savePins(pins().filter(x=>x!==e.target.dataset.x));return}
-      setSelected(c.dataset.p);
-      const dir=c.dataset.p.includes('/')?c.dataset.p.replace(/\/[^/]+$/,''):'';
-      loadTree(dir).then(run);
-    };
+  el.innerHTML='<span class="meta" style="margin-right:.4rem">Pinned</span>'+list.map(p=>{
+    const enc=encodeURIComponent(p);
+    return `<span class="chip on" data-p="${enc}"><span class="nm">${esc(p)}</span><button type="button" class="x" data-x="${enc}" title="Unpin" aria-label="Unpin">×</button></span>`;
+  }).join('');
+  el.querySelectorAll('.chip .x').forEach(btn=>{
+    btn.addEventListener('click',e=>{
+      e.preventDefault();
+      e.stopPropagation();
+      const path=decodeURIComponent(btn.getAttribute('data-x')||'');
+      savePins(pins().filter(x=>x!==path));
+    });
   });
+  el.querySelectorAll('.chip').forEach(c=>{
+    c.addEventListener('click',()=>{
+      const path=decodeURIComponent(c.getAttribute('data-p')||'');
+      if(!path) return;
+      setSelected(path);
+      const dir=path.includes('/')?path.replace(/\/[^/]+$/,''):'';
+      loadTree(dir).then(run);
+    });
+  });
+}
+
+function showErr(msg){
+  const promisor=/PROMISOR|promisor|lazy fetch|не удалось|missing git objects/i.test(msg||'');
+  let html=`<div class="errbox">${esc(msg)}`;
+  if(promisor){
+    html+=`<div><button type="button" id="errUpdate">Update objects</button><button type="button" id="errRepair">Repair clone</button></div>`;
+  }
+  html+='</div>';
+  return html;
+}
+function bindErrActions(root){
+  root.querySelector('#errUpdate')?.addEventListener('click',()=>doUpdate());
+  root.querySelector('#errRepair')?.addEventListener('click',()=>doRepair());
 }
 
 function setView(v){
@@ -193,7 +232,8 @@ function syncHash(){
 
 async function info(){
   const d=await fetch('/api/info').then(r=>r.json());
-  document.getElementById('repoInfo').textContent=(d.repo||'')+' · v'+(d.version||'');
+  document.getElementById('repoInfo').textContent=(d.repo||'')+' · v'+(d.version||'')+(d.partial?' · partial':'');
+  document.getElementById('partialBanner').classList.toggle('show',!!d.partial);
 }
 
 async function loadCached(){
@@ -252,7 +292,10 @@ async function loadTree(path){
     el.querySelectorAll('.row').forEach(row=>{
       row.onclick=()=>activateRow(+row.dataset.i);
     });
-  }catch(e){el.innerHTML='<div class="empty">'+esc(e.message||e)+'</div>'}
+  }catch(e){
+    el.innerHTML=showErr(e.message||e);
+    bindErrActions(el);
+  }
 }
 
 function paintFocus(){
@@ -291,17 +334,35 @@ async function openRemote(repair){
 }
 
 document.getElementById('btnOpen').onclick=()=>openRemote(false);
-document.getElementById('btnRepair').onclick=()=>openRemote(true);
-document.getElementById('btnUpdate').onclick=async()=>{
-  document.getElementById('out').innerHTML='<div class="empty">Updating from remote…</div>';
+async function doUpdate(){
+  document.getElementById('out').innerHTML='<div class="empty">Updating / fetching missing objects…</div>';
   try{
     const r=await fetch('/api/update',{method:'POST'});
     const d=await r.json();
     if(d.error) throw new Error(d.error);
     await info(); await loadTree(treePath); await run();
     alert(d.message||'updated');
-  }catch(e){alert(e.message||e)}
+  }catch(e){document.getElementById('out').innerHTML=showErr(e.message||e);bindErrActions(document.getElementById('out'))}
+}
+async function doRepair(){
+  if(!confirm('Re-fetch / re-clone this repo to fix missing git objects?')) return;
+  document.getElementById('out').innerHTML='<div class="empty">Repairing clone (may take a while)…</div>';
+  try{
+    const r=await fetch('/api/repair',{method:'POST'});
+    const d=await r.json();
+    if(d.error) throw new Error(d.error);
+    await info(); await loadCached(); await loadTree(treePath); await run();
+    alert(d.message||'repaired');
+  }catch(e){document.getElementById('out').innerHTML=showErr(e.message||e);bindErrActions(document.getElementById('out'))}
+}
+document.getElementById('btnUpdate').onclick=()=>doUpdate();
+document.getElementById('btnRepair').onclick=()=>{
+  const spec=document.getElementById('remoteSpec').value.trim();
+  if(spec) openRemote(true);
+  else doRepair();
 };
+document.getElementById('btnBannerUpdate').onclick=()=>doUpdate();
+document.getElementById('btnBannerRepair').onclick=()=>doRepair();
 document.getElementById('btnPin').onclick=()=>{
   if(!selectedPath) return;
   const p=pins();
@@ -406,7 +467,11 @@ async function run(){
       const max=Math.max(...(d.buckets||[]).map(b=>b.commits),1);
       out.innerHTML=(d.buckets||[]).map(b=>`<div class="owner"><span>${esc(b.week)}</span><span>${b.commits}</span></div><div class="bar"><i style="width:${(b.commits/max)*100}%"></i></div>`).join('')||'<div class="empty">No churn data</div>';
     }
-  }catch(e){out.innerHTML='<div class="empty">'+esc(e.message||e)+'</div>'}
+  }catch(e){
+    const out=document.getElementById('out');
+    out.innerHTML=showErr(e.message||e);
+    bindErrActions(out);
+  }
 }
 
 document.getElementById('run').onclick=run;

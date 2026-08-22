@@ -4,8 +4,8 @@ use clap::{Parser, Subcommand};
 use timeforge::{
     blame_map, blast_radius, bug_hunt, commit_churn, contributors, dig_pattern, file_blame,
     file_hotspots, file_timeline, fix_break_pairs, ghost_authors, list_cached, list_tree,
-    open_github, ownership_heatmap, pr_travel, remote, repair_cache, report, resolve_repo,
-    stale_files, update_repo, why_broke,
+    open_github, ownership_heatmap, pr_travel, remote, repair_cache, repair_current, report,
+    resolve_repo, stale_files, update_repo, why_broke,
 };
 
 #[derive(Parser)]
@@ -42,8 +42,13 @@ enum Commands {
         )]
         repair: bool,
     },
-    /// Fetch + fast-forward current repo to latest remote
+    /// Fetch + fast-forward / materialize current repo
     Update {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Repair current clone (materialize or full re-clone from origin)
+    Repair {
         #[arg(long)]
         json: bool,
     },
@@ -260,6 +265,18 @@ fn run() -> Result<(), String> {
                 report::print_json(&u);
             } else {
                 println!("update  {}", u.message);
+                println!("HEAD    {} → {}", u.before, u.after);
+                if u.partial {
+                    println!("note    still marked partial — try: timeforge repair");
+                }
+            }
+        }
+        Commands::Repair { json } => {
+            let u = repair_current(&repo)?;
+            if json {
+                report::print_json(&u);
+            } else {
+                println!("repair  {}", u.message);
                 println!("HEAD    {} → {}", u.before, u.after);
             }
         }
