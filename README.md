@@ -56,25 +56,13 @@ timeforge open owner/repo --repair
 
 ---
 
-## CLI (v0.4)
+## CLI (v0.5)
 
 ```bash
-timeforge open <spec> [--update] [--repair|--full]
-timeforge update                # fetch + ff-pull current repo
-timeforge repos
-timeforge tree [path]
-timeforge hunt --query unwrap   # Bug Hunt / regression radar
-timeforge radar --query panic   # alias of hunt
-timeforge dig <pattern>         # archaeology: first/last seen
-timeforge pairs                 # fix ↔ break pairs
-timeforge timeline <path>
-timeforge blame <path>
-timeforge map <path>
-timeforge pr <N|#N|pull/N>
-timeforge ghosts [--days 180]
-timeforge why [--path …] [--query …]
-timeforge heatmap | blast | hotspots | stale | contributors | churn
-timeforge serve                 # UI: Hunt + Update button
+timeforge ask / hunt --query unwrap   # one-question fast radar (~10ms local)
+timeforge hunt --query '#12'          # PR fast path
+timeforge update | repair             # in-place only
+timeforge serve                       # Ask box + online pill
 ```
 
 Global: `--repo <path|owner/repo|url>` · `--update`

@@ -34,7 +34,7 @@ pub fn why_broke(
         "--pretty=format:%H|%an|%ae|%ad|%s".to_string(),
         "--date=short".to_string(),
         "-n".to_string(),
-        "80".to_string(),
+        format!("{}", limit.saturating_mul(6).clamp(20, 48)),
         "--name-only".to_string(),
     ];
     if let Some(p) = path {

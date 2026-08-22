@@ -146,6 +146,8 @@ fn hunt_ranks_auth_and_ignores_garbage() {
     let repo = timeforge::Repo::discover(dir.path()).unwrap();
     let good = timeforge::bug_hunt(&repo, "auth", Some("src"), "10 years ago").unwrap();
     assert!(!good.hits.is_empty());
+    assert!(good.answer.is_some());
+    assert!(good.elapsed_ms < 30_000);
     assert!(
         good.hits.iter().any(|h| h.score >= 25),
         "expected strong hits for auth: {:?}",
@@ -157,10 +159,20 @@ fn hunt_ranks_auth_and_ignores_garbage() {
         "garbage query should not produce weak suspects: {:?}",
         bad.hits
     );
-    // Prefer empty or dig-only for nonsense
     assert!(
         bad.dig.as_ref().map(|d| d.events.is_empty()).unwrap_or(true)
     );
+}
+
+#[test]
+fn hunt_pr_fast_path() {
+    let dir = seed_repo();
+    let repo = timeforge::Repo::discover(dir.path()).unwrap();
+    let h = timeforge::bug_hunt(&repo, "#12", None, "10 years ago").unwrap();
+    assert_eq!(h.mode, "pr-fast");
+    assert!(h.answer.is_some());
+    assert!(h.pr.is_some());
+    assert!(h.elapsed_ms < 10_000);
 }
 
 #[test]

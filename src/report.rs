@@ -211,7 +211,25 @@ pub fn print_pairs(p: &FixBreakReport) {
 
 pub fn print_hunt(h: &HuntReport) {
     banner();
-    println!("{}\n  {}\n", "BUG HUNT / REGRESSION RADAR".bold().red(), h.summary.dimmed());
+    println!(
+        "{}\n  {} · {}ms · mode {}\n",
+        "BUG HUNT / REGRESSION RADAR".bold().red(),
+        h.summary.dimmed(),
+        h.elapsed_ms,
+        h.mode.cyan()
+    );
+    if let Some(a) = &h.answer {
+        println!("{}", "ANSWER".bold().underline());
+        println!("  {}", a.headline.green().bold());
+        println!("  {}", a.why.dimmed());
+        if let Some(c) = &a.commit {
+            println!("  commit {}", c.yellow());
+        }
+        if let Some(p) = &a.path {
+            println!("  path   {}", p.yellow());
+        }
+        println!();
+    }
     for hit in &h.hits {
         println!(
             "  {:>3}  [{:^10}] {}",

@@ -25,6 +25,16 @@ h1{font-size:1.55rem;letter-spacing:-.03em;font-weight:700}
 .open-row button{border:none;border-radius:10px;padding:.55rem .9rem;font-weight:700;cursor:pointer;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#062018;font-size:.8rem}
 .open-row button.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
 .open-row button.ghost:hover{color:var(--text);border-color:var(--accent)}
+.ask-row input{font-size:.95rem;padding:.7rem .9rem;border-color:#2a4a5a}
+.ask-row button{padding:.7rem 1.2rem;font-size:.9rem}
+.net{display:inline-block;margin-left:.4rem;padding:.1rem .45rem;border-radius:999px;font-size:.65rem;border:1px solid var(--line)}
+.net.on{color:#34d399;border-color:#34d39955}
+.net.off{color:var(--bad);border-color:#fb718555}
+.answer{margin:.2rem 0 .85rem;padding:.85rem 1rem;border-radius:12px;border:1px solid #5eead444;background:linear-gradient(135deg,#0f2a2acc,#122033aa)}
+.answer .k{font-size:.65rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:.35rem}
+.answer .t{font-size:1.05rem;font-weight:700;color:var(--accent);line-height:1.35}
+.answer .d{font-size:.78rem;color:var(--muted);margin-top:.4rem}
+.answer .ms{float:right;font-size:.68rem;color:var(--muted)}
 .chips{margin-bottom:.65rem;min-height:1.2rem}
 .chip{display:inline-flex;align-items:center;gap:.25rem;margin:.15rem .25rem .15rem 0;padding:.25rem .55rem;border-radius:999px;border:1px solid var(--line);font-size:.68rem;color:var(--muted);cursor:pointer}
 .chip:hover,.chip.on{color:var(--text);border-color:var(--accent)}
@@ -87,12 +97,16 @@ button.mini:hover{color:var(--text);border-color:var(--accent)}
       <div class="logo"></div>
       <div>
         <h1>Timeforge</h1>
-        <div class="tag">Bug hunt · radar · archaeology · FounderB <span class="kbd">j/k</span> <span class="kbd">h</span> <span class="kbd">u</span></div>
+        <div class="tag">One question · fast hunt · FounderB <span class="kbd">Enter</span> <span class="kbd">u</span> <span id="netPill" class="net off">…</span></div>
       </div>
     </div>
     <div class="meta" id="repoInfo" style="margin:0;text-align:right">Loading…</div>
   </div>
 
+  <div class="open-row ask-row">
+    <input id="askBox" placeholder="Ask one thing: promisor · unwrap · #12 · panic in auth…"/>
+    <button id="btnAsk">Ask</button>
+  </div>
   <div class="open-row">
     <input id="remoteSpec" placeholder="Open remote: FounderB/SignShield or rust-lang/mdBook"/>
     <button id="btnOpen">Open</button>
@@ -234,6 +248,11 @@ async function info(){
   const d=await fetch('/api/info').then(r=>r.json());
   document.getElementById('repoInfo').textContent=(d.repo||'')+' · v'+(d.version||'')+(d.partial?' · partial':'');
   document.getElementById('partialBanner').classList.toggle('show',!!d.partial);
+  const net=d.network||{};
+  const pill=document.getElementById('netPill');
+  if(net.online){pill.textContent='online · '+net.ms+'ms';pill.className='net on'}
+  else if(net.has_remote){pill.textContent='offline';pill.className='net off'}
+  else{pill.textContent='local';pill.className='net'}
 }
 
 async function loadCached(){
@@ -272,7 +291,7 @@ async function loadTree(path){
   const el=document.getElementById('tree');
   el.innerHTML='<div class="empty">Loading…</div>';
   try{
-    const d=await fetch('/api/tree?churn=1&path='+encodeURIComponent(treePath)).then(r=>r.json());
+    const d=await fetch('/api/tree?churn=0&path='+encodeURIComponent(treePath)).then(r=>r.json());
     if(d.error) throw new Error(d.error);
     treeRows=[];
     const html=[];
@@ -333,6 +352,15 @@ async function openRemote(repair){
   await info(); await loadCached(); await loadTree(''); await run();
 }
 
+document.getElementById('btnAsk').onclick=()=>{
+  const q=document.getElementById('askBox').value.trim();
+  if(!q){document.getElementById('askBox').focus();return}
+  document.getElementById('query').value=q;
+  setView('hunt');
+};
+document.getElementById('askBox').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){document.getElementById('btnAsk').click()}
+});
 document.getElementById('btnOpen').onclick=()=>openRemote(false);
 async function doUpdate(){
   document.getElementById('out').innerHTML='<div class="empty">Updating / fetching missing objects…</div>';
@@ -380,12 +408,21 @@ async function run(){
   out.innerHTML='<div class="empty">Loading…</div>';
   try{
     if(view==='hunt'){
-      const qq=document.getElementById('query').value.trim()||selectedPath||'fix';
-      const d=await fetch('/api/hunt?q='+encodeURIComponent(qq)+'&path='+path).then(r=>r.json());
+      const qq=document.getElementById('askBox').value.trim()||document.getElementById('query').value.trim()||selectedPath||'';
+      if(!qq){out.innerHTML='<div class="empty">Type a question above — keyword, #PR, or path — then Ask</div>';return}
+      document.getElementById('query').value=qq;
+      document.getElementById('askBox').value=qq;
+      const d=await fetch('/api/ask?fast=1&q='+encodeURIComponent(qq)+'&path='+path).then(r=>r.json());
       if(d.error) throw new Error(d.error);
-      out.innerHTML=`<div class="meta">${esc(d.summary)}</div>`+
-        (d.hits||[]).map(h=>`<div class="event" style="cursor:pointer" data-p="${esc(h.path||'')}" data-kind="${esc(h.kind)}"><div class="h"><span class="score">${h.score}</span> [${esc(h.kind)}] ${esc(h.title)}</div><div class="s">${esc(h.detail)}</div>${h.path?`<div class="meta">→ ${esc(h.path)}</div>`:''}</div>`).join('')||'<div class="empty">No hits — try another keyword</div>';
-      out.querySelectorAll('[data-p]').forEach(e=>e.onclick=()=>{if(e.dataset.p){setSelected(e.dataset.p);setView(e.dataset.kind==='blame-map'?'map':'timeline')}});
+      let html=`<div class="meta">${esc(d.summary)} · mode ${esc(d.mode||'fast')}</div>`;
+      if(d.answer){
+        html+=`<div class="answer"><div class="k">Answer <span class="ms">${d.elapsed_ms||0}ms</span></div><div class="t">${esc(d.answer.headline)}</div><div class="d">${esc(d.answer.why)}</div>`;
+        if(d.answer.commit||d.answer.path){html+=`<div class="d">${d.answer.commit?esc(d.answer.commit):''}${d.answer.path?' → '+esc(d.answer.path):''}</div>`}
+        html+='</div>';
+      }
+      html+=(d.hits||[]).map(h=>`<div class="event" style="cursor:pointer" data-p="${esc(h.path||'')}" data-kind="${esc(h.kind)}"><div class="h"><span class="score">${h.score}</span> [${esc(h.kind)}] ${esc(h.title)}</div><div class="s">${esc(h.detail)}</div>${h.path?`<div class="meta">→ ${esc(h.path)}</div>`:''}</div>`).join('')||'<div class="empty">No hits</div>';
+      out.innerHTML=html;
+      out.querySelectorAll('[data-p]').forEach(e=>e.onclick=()=>{if(e.dataset.p){setSelected(e.dataset.p);setView(e.dataset.kind&&e.dataset.kind.includes('pr')?'timeline':(e.dataset.kind==='blame-map'?'map':'timeline'))}});
     } else if(view==='timeline'){
       const d=await fetch('/api/timeline?path='+path).then(r=>r.json());
       if(d.error) throw new Error(d.error);
@@ -496,12 +533,19 @@ document.addEventListener('keydown',e=>{
 (function boot(){
   const u=new URLSearchParams(location.search);
   if(u.get('path')) setSelected(u.get('path'));
-  if(u.get('q')) document.getElementById('query').value=u.get('q');
+  if(u.get('q')){document.getElementById('query').value=u.get('q');document.getElementById('askBox').value=u.get('q')}
   if(u.get('view')&&titles[u.get('view')]) view=u.get('view');
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.v===view));
   document.getElementById('outTitle').textContent=titles[view];
   renderPins();
-  info().then(loadCached).then(()=>loadTree(selectedPath.includes('/')?selectedPath.replace(/\/[^/]+$/,''):'')).then(run);
+  info().then(loadCached).then(()=>loadTree(selectedPath.includes('/')?selectedPath.replace(/\/[^/]+$/,''):'')).then(()=>{
+    // Don't auto-hunt empty — wait for Ask unless ?q= present
+    if(view==='hunt'&&!document.getElementById('askBox').value.trim()){
+      document.getElementById('out').innerHTML='<div class="empty">Ask one question above for a fast answer (keyword · #PR · path).</div>';
+      return;
+    }
+    return run();
+  });
 })();
 </script>
 </body>

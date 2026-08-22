@@ -5,7 +5,7 @@ use serde_json::json;
 use tiny_http::{Header, Method, Response, Server};
 
 use crate::{
-    blame_map, blast_radius, bug_hunt, commit_churn, contributors, dig_pattern, file_blame,
+    blame_map, blast_radius, bug_hunt_ex, commit_churn, contributors, dig_pattern, file_blame,
     file_hotspots, file_timeline, fix_break_pairs, ghost_authors, list_cached, list_tree_ex,
     open_github, ownership_heatmap, pr_travel, remote, repair_cache, repair_current, stale_files,
     update_repo, why_broke, Repo,
@@ -56,11 +56,13 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
         if url == "/api/info" {
             let repo = state.lock().unwrap();
             let partial = crate::git::is_partial_clone(repo.path());
+            let net = crate::git::probe_network(repo.path(), 2500);
             let body = json!({
                 "repo": repo.path().display().to_string(),
                 "product": "Timeforge",
                 "version": env!("CARGO_PKG_VERSION"),
                 "partial": partial,
+                "network": net,
             })
             .to_string();
             let _ = request.respond(respond(200, &body, "application/json"));
@@ -180,7 +182,7 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
             let dir = path_q.clone().unwrap_or_default();
             let with_churn = query_param(&url, "churn")
                 .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-                .unwrap_or(true);
+                .unwrap_or(false);
             let repo = state.lock().unwrap();
             match list_tree_ex(&repo, &dir, with_churn) {
                 Ok(t) => {
@@ -291,11 +293,17 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
             continue;
         }
 
-        if url.starts_with("/api/hunt") || url.starts_with("/api/radar") {
+        if url.starts_with("/api/hunt")
+            || url.starts_with("/api/radar")
+            || url.starts_with("/api/ask")
+        {
             let qq = q.clone().unwrap_or_default();
             let path = path_q.clone();
+            let fast = query_param(&url, "fast")
+                .map(|v| v != "0" && !v.eq_ignore_ascii_case("false"))
+                .unwrap_or(true);
             let repo = state.lock().unwrap();
-            match bug_hunt(&repo, &qq, path.as_deref(), "180 days ago") {
+            match bug_hunt_ex(&repo, &qq, path.as_deref(), "180 days ago", fast) {
                 Ok(h) => {
                     let body = serde_json::to_string_pretty(&h).unwrap_or_default();
                     let _ = request.respond(respond(200, &body, "application/json"));

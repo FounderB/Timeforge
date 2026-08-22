@@ -152,3 +152,53 @@ pub fn harden_local_clone(repo: &Path) {
     }
     let _ = run_git(repo, &["config", "remote.origin.promisor", "false"], false);
 }
+
+/// Quick network probe (ls-remote) with timeout. Does not change the repo.
+pub fn probe_network(repo: &Path, timeout_ms: u64) -> NetworkProbe {
+    let has_remote = run_git(repo, &["remote"], false)
+        .map(|s| !s.trim().is_empty())
+        .unwrap_or(false);
+    if !has_remote {
+        return NetworkProbe {
+            online: false,
+            has_remote: false,
+            detail: "no remotes".into(),
+            ms: 0,
+        };
+    }
+    let repo = repo.to_path_buf();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let t0 = std::time::Instant::now();
+        let r = run_git(&repo, &["ls-remote", "--heads", "origin"], false);
+        let _ = tx.send((r, t0.elapsed().as_millis() as u64));
+    });
+    match rx.recv_timeout(std::time::Duration::from_millis(timeout_ms.max(500))) {
+        Ok((Ok(_), ms)) => NetworkProbe {
+            online: true,
+            has_remote: true,
+            detail: "origin reachable".into(),
+            ms,
+        },
+        Ok((Err(e), ms)) => NetworkProbe {
+            online: false,
+            has_remote: true,
+            detail: e.chars().take(100).collect(),
+            ms,
+        },
+        Err(_) => NetworkProbe {
+            online: false,
+            has_remote: true,
+            detail: format!("timeout after {timeout_ms}ms"),
+            ms: timeout_ms,
+        },
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct NetworkProbe {
+    pub online: bool,
+    pub has_remote: bool,
+    pub detail: String,
+    pub ms: u64,
+}

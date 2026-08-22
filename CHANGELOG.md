@@ -1,3 +1,11 @@
+## 0.5.0 — Fast one-question hunt
+
+- Parallel hunt (why ∥ dig ∥ pairs); skips heavy ghosts/blame unless path given
+- PR numbers (`#12`) take a dedicated fast path
+- `answer` + `elapsed_ms` on every hunt; `/api/ask`
+- Network probe in `/api/info` (online/offline pill)
+- UI Ask box — one question, Enter to hunt; tree loads without churn by default
+
 ## 0.4.2 — Update/Repair always in-place
 
 - `update` / `repair` / `open --repair` never wipe-and-reclone into a new folder

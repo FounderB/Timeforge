@@ -27,7 +27,7 @@ pub use fixbreak::fix_break_pairs;
 pub use ghosts::ghost_authors;
 pub use heatmap::ownership_heatmap;
 pub use hotspots::file_hotspots;
-pub use hunt::{bug_hunt, regression_radar};
+pub use hunt::{bug_hunt, bug_hunt_ex, regression_radar};
 pub use pr::pr_travel;
 pub use remote::{
     list_cached, open_github, repair_cache, repair_current, resolve_repo, update_repo,
