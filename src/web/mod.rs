@@ -7,8 +7,8 @@ use tiny_http::{Header, Method, Response, Server};
 use crate::{
     blame_map, blast_radius, bug_hunt_ex, commit_churn, contributors, dig_pattern, file_blame,
     file_hotspots, file_timeline, fix_break_pairs, ghost_authors, list_cached, list_tree_ex,
-    open_github, ownership_heatmap, pr_travel, remote, repair_cache, repair_current, stale_files,
-    update_repo, why_broke, Repo,
+    open_github, ownership_heatmap, pr_travel, remote, repair_cache, repair_current,
+    stale_files, update_repo, why_broke, Repo,
 };
 
 const INDEX: &str = include_str!("../../web/index.html");
@@ -48,7 +48,7 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
                     .with_status_code(204)
                     .with_header(Header::from_bytes("Access-Control-Allow-Origin", "*").unwrap())
                     .with_header(
-                        Header::from_bytes("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
+                        Header::from_bytes("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS")
                             .unwrap(),
                     )
                     .with_header(
@@ -89,6 +89,64 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
         }
 
         if url == "/api/repos" {
+            if method == Method::Delete || method == Method::Post {
+                let mut body = String::new();
+                let _ = request.as_reader().read_to_string(&mut body);
+                let parsed = serde_json::from_str::<serde_json::Value>(&body).ok();
+                let spec = parsed
+                    .as_ref()
+                    .and_then(|v| {
+                        v.get("spec")
+                            .or_else(|| v.get("id"))
+                            .and_then(|s| s.as_str())
+                            .map(|s| s.to_string())
+                    })
+                    .or_else(|| query_param(&url, "spec").or_else(|| query_param(&url, "id")));
+                let clean_all = parsed
+                    .as_ref()
+                    .and_then(|v| v.get("clean").and_then(|b| b.as_bool()))
+                    .unwrap_or(false)
+                    || url.contains("clean=1");
+                if clean_all {
+                    match remote::clean_cached() {
+                        Ok(list) => {
+                            let body = json!({"ok": true, "removed": list}).to_string();
+                            let _ = request.respond(respond(200, &body, "application/json"));
+                        }
+                        Err(e) => {
+                            let _ = request.respond(respond(
+                                400,
+                                &json!({"error": e}).to_string(),
+                                "application/json",
+                            ));
+                        }
+                    }
+                    continue;
+                }
+                let Some(spec) = spec else {
+                    let _ = request.respond(respond(
+                        400,
+                        r#"{"error":"provide {\"spec\":\"owner/repo\"} or id"}"#,
+                        "application/json",
+                    ));
+                    continue;
+                };
+                let active = state.lock().unwrap().path().to_path_buf();
+                match remote::remove_cached_ex(&spec, Some(&active)) {
+                    Ok(r) => {
+                        let body = serde_json::to_string(&r).unwrap_or_default();
+                        let _ = request.respond(respond(200, &body, "application/json"));
+                    }
+                    Err(e) => {
+                        let _ = request.respond(respond(
+                            400,
+                            &json!({"error": e}).to_string(),
+                            "application/json",
+                        ));
+                    }
+                }
+                continue;
+            }
             match list_cached() {
                 Ok(list) => {
                     let body = serde_json::to_string_pretty(&list).unwrap_or_default();

@@ -1,3 +1,9 @@
+## 0.6.1 — Remove cached repos
+
+- `timeforge repos rm owner/repo --yes` / `repos clean --yes`
+- UI: × on cached chips deletes `~/.timeforge/repos/…` only (confirm)
+- API: `POST /api/repos` with `{spec|id}` or `{clean:true}`
+
 ## 0.6.0 — Story Ask + speed
 
 - Parse Ask into path / `file:line` / `::symbol` / dig needle / PR (`parsed` on report)

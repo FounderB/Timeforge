@@ -2,10 +2,10 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 use timeforge::{
-    blame_map, blast_radius, bug_hunt, commit_churn, contributors, dig_pattern, file_blame,
-    file_hotspots, file_timeline, fix_break_pairs, ghost_authors, list_cached, list_tree,
-    open_github, ownership_heatmap, pr_travel, remote, repair_cache, repair_current, report,
-    resolve_repo, stale_files, update_repo, why_broke,
+    blame_map, blast_radius, bug_hunt, clean_cached, commit_churn, contributors, dig_pattern,
+    file_blame, file_hotspots, file_timeline, fix_break_pairs, ghost_authors, list_cached,
+    list_tree, open_github, ownership_heatmap, pr_travel, remote, remove_cached, repair_cache,
+    repair_current, report, resolve_repo, stale_files, update_repo, why_broke,
 };
 
 #[derive(Parser)]
@@ -69,8 +69,10 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
-    /// List cached remote repositories (~/.timeforge/repos)
+    /// List / remove cached remote repositories (~/.timeforge/repos)
     Repos {
+        #[command(subcommand)]
+        action: Option<ReposAction>,
         #[arg(long)]
         json: bool,
     },
@@ -221,6 +223,21 @@ enum Commands {
     },
 }
 
+#[derive(Subcommand)]
+enum ReposAction {
+    /// Delete one cached clone (owner/repo or id)
+    Rm {
+        spec: String,
+        #[arg(long, short = 'y', help = "do not prompt")]
+        yes: bool,
+    },
+    /// Delete all cached clones under ~/.timeforge/repos
+    Clean {
+        #[arg(long, short = 'y', help = "required — refuse without it")]
+        yes: bool,
+    },
+}
+
 fn main() {
     if let Err(e) = run() {
         eprintln!("error: {e}");
@@ -248,12 +265,44 @@ fn run() -> Result<(), String> {
             println!("tip   timeforge --repo {}/{} ask \"…\"", owner, name);
             return Ok(());
         }
-        Some(Commands::Repos { json }) => {
-            let list = list_cached()?;
-            if *json {
-                report::print_json(&list);
-            } else {
-                report::print_cached(&list);
+        Some(Commands::Repos { action, json }) => {
+            match action {
+                None => {
+                    let list = list_cached()?;
+                    if *json {
+                        report::print_json(&list);
+                    } else {
+                        report::print_cached(&list);
+                    }
+                }
+                Some(ReposAction::Rm { spec, yes }) => {
+                    if !yes {
+                        eprintln!("Delete cached `{spec}` from disk? Re-run with --yes to confirm.");
+                        std::process::exit(1);
+                    }
+                    let r = remove_cached(spec)?;
+                    if *json {
+                        report::print_json(&r);
+                    } else {
+                        println!("removed {}", r.id);
+                        println!("path    {}", r.path);
+                    }
+                }
+                Some(ReposAction::Clean { yes }) => {
+                    if !yes {
+                        eprintln!("This deletes ALL of ~/.timeforge/repos. Re-run with --yes.");
+                        std::process::exit(1);
+                    }
+                    let removed = clean_cached()?;
+                    if *json {
+                        report::print_json(&removed);
+                    } else {
+                        println!("cleaned {} cached repo(s)", removed.len());
+                        for r in &removed {
+                            println!("  - {}", r.id);
+                        }
+                    }
+                }
             }
             return Ok(());
         }

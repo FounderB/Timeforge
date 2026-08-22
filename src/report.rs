@@ -414,7 +414,9 @@ pub fn print_cached(list: &[CachedRepo]) {
             println!("      {}", remote.dimmed());
         }
     }
-    println!();
+    println!(
+        "\n  tip  timeforge repos rm owner/repo --yes · timeforge repos clean --yes\n"
+    );
 }
 
 pub fn print_json<T: serde::Serialize>(v: &T) {

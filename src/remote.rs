@@ -125,6 +125,88 @@ pub fn list_cached() -> Result<Vec<CachedRepo>, String> {
     Ok(out)
 }
 
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct RemoveResult {
+    pub ok: bool,
+    pub id: String,
+    pub path: String,
+    pub message: String,
+    /// True if the deleted folder was the currently open serve/cwd path.
+    pub was_active: bool,
+}
+
+/// Delete one cached clone under `~/.timeforge/repos` only.
+/// Accepts `owner/repo`, URL, or cache id `Owner_Name`.
+pub fn remove_cached(spec: &str) -> Result<RemoveResult, String> {
+    remove_cached_ex(spec, None)
+}
+
+pub fn remove_cached_ex(spec: &str, active: Option<&Path>) -> Result<RemoveResult, String> {
+    let target = resolve_cache_path(spec)?;
+    let root = cache_dir()?
+        .canonicalize()
+        .unwrap_or_else(|_| cache_dir().unwrap());
+    let canon = target
+        .canonicalize()
+        .map_err(|_| format!("not cached: {}", target.display()))?;
+    if !canon.starts_with(&root) {
+        return Err("refusing to delete outside ~/.timeforge/repos".into());
+    }
+    if !canon.join(".git").exists() {
+        return Err(format!("not a git cache: {}", canon.display()));
+    }
+    let id = canon
+        .file_name()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let path_s = canon.display().to_string();
+    let was_active = active
+        .map(|a| {
+            let ac = a.canonicalize().unwrap_or_else(|_| a.to_path_buf());
+            ac == canon || ac.starts_with(&canon)
+        })
+        .unwrap_or(false);
+
+    fs::remove_dir_all(&canon).map_err(|e| format!("delete failed: {e}"))?;
+
+    Ok(RemoveResult {
+        ok: true,
+        id: id.clone(),
+        path: path_s,
+        message: format!("removed cached `{id}` from disk"),
+        was_active,
+    })
+}
+
+/// Remove every cached repo under `~/.timeforge/repos`.
+pub fn clean_cached() -> Result<Vec<RemoveResult>, String> {
+    let list = list_cached()?;
+    let mut out = Vec::new();
+    for r in list {
+        out.push(remove_cached(&r.id)?);
+    }
+    Ok(out)
+}
+
+fn resolve_cache_path(spec: &str) -> Result<PathBuf, String> {
+    let spec = spec.trim();
+    if spec.is_empty() {
+        return Err("provide owner/repo or cache id".into());
+    }
+    let root = cache_dir()?;
+    if let Ok((owner, name)) = parse_github_spec(spec) {
+        return Ok(root.join(format!("{owner}_{name}")));
+    }
+    // Cache folder id: Owner_Name
+    let by_id = root.join(spec);
+    if by_id.exists() {
+        return Ok(by_id);
+    }
+    Err(format!(
+        "could not resolve `{spec}` — use owner/repo or id from `timeforge repos`"
+    ))
+}
+
 pub fn is_remote_spec(spec: &str) -> bool {
     let s = spec.trim();
     if Path::new(s).exists() {

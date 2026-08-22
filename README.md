@@ -67,11 +67,9 @@ cd Timeforge && cargo build --release
 ## Ask mode (v0.6)
 
 ```bash
-timeforge ask "panic at src/auth.rs:42"   # path + line story
-timeforge ask "foo::bar::baz"             # symbol dig
-timeforge ask PCRE2                       # proven code token
-timeforge "#42"                           # PR + later touches
-```
+timeforge repos                         # list ~/.timeforge/repos
+timeforge repos rm owner/repo --yes     # delete one cache
+timeforge repos clean --yes             # wipe all caches
 
 Global: `--repo <path|owner/repo|url>` · `--update`
 

@@ -280,11 +280,39 @@ async function loadCached(){
   const list=await fetch('/api/repos').then(r=>r.json()).catch(()=>[]);
   const el=document.getElementById('cached');
   if(!Array.isArray(list)||!list.length){el.innerHTML='';return}
-  el.innerHTML=list.map(r=>{
+  el.innerHTML='<span class="meta" style="margin-right:.4rem">Cached</span>'+list.map(r=>{
     const spec=(r.remote||r.id).replace('https://github.com/','').replace(/\.git$/,'');
-    return `<span class="chip" data-spec="${esc(spec)}">${esc(r.id)}</span>`;
+    const enc=encodeURIComponent(r.id);
+    return `<span class="chip" data-spec="${esc(spec)}" data-id="${esc(r.id)}" title="${esc(r.path)}"><span class="nm">${esc(spec)}</span><button type="button" class="x" data-rm="${enc}" title="Remove from disk" aria-label="Remove">×</button></span>`;
   }).join('');
-  el.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{document.getElementById('remoteSpec').value=c.dataset.spec;openRemote(false)});
+  el.querySelectorAll('.chip .nm, .chip').forEach(c=>{
+    if(c.classList.contains('x')) return;
+    c.addEventListener('click',e=>{
+      if(e.target.closest && e.target.closest('.x')) return;
+      const chip=c.closest?c.closest('.chip'):c;
+      if(!chip||!chip.dataset.spec) return;
+      document.getElementById('remoteSpec').value=chip.dataset.spec;
+      openRemote(false);
+    });
+  });
+  el.querySelectorAll('.chip .x').forEach(btn=>{
+    btn.addEventListener('click',async e=>{
+      e.preventDefault(); e.stopPropagation();
+      const id=decodeURIComponent(btn.dataset.rm||'');
+      if(!id) return;
+      if(!confirm('Remove cached clone “‘+id+'” from this machine?\n(Only ~/.timeforge/repos — not the GitHub repo)')) return;
+      try{
+        const r=await fetch('/api/repos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+        const d=await r.json();
+        if(d.error) throw new Error(d.error);
+        await loadCached();
+        if(d.was_active){
+          document.getElementById('out').innerHTML='<div class="empty">Removed active cache. Open another repo above.</div>';
+          document.getElementById('repoInfo').textContent='cache removed · open a repo';
+        }
+      }catch(err){alert(err.message||err)}
+    });
+  });
 }
 
 function renderCrumb(path){
