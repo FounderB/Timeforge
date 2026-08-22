@@ -1,3 +1,9 @@
+## 0.6.2 — Fix UI stuck on Loading
+
+- `/api/info` no longer holds the repo lock during `ls-remote` (blocked the whole UI)
+- Boot: `info?fast=1` + tree + cached in parallel; network pill loads in background
+- Harder tree/info error surfacing so the page never sits on “Loading…” forever
+
 ## 0.6.1 — Remove cached repos
 
 - `timeforge repos rm owner/repo --yes` / `repos clean --yes`

@@ -72,12 +72,29 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
             continue;
         }
 
-        if url == "/api/info" {
-            let repo = state.lock().unwrap();
-            let partial = crate::git::is_partial_clone(repo.path());
-            let net = crate::git::probe_network(repo.path(), 2500);
+        if url == "/api/info" || url.starts_with("/api/info?") {
+            let (repo_path, partial) = {
+                let repo = state.lock().unwrap();
+                (
+                    repo.path().display().to_string(),
+                    crate::git::is_partial_clone(repo.path()),
+                )
+            };
+            // Never hold the repo lock during network I/O — it blocked the whole UI.
+            let skip_net = url.contains("net=0") || url.contains("fast=1");
+            let net = if skip_net {
+                crate::git::NetworkProbe {
+                    online: false,
+                    has_remote: false,
+                    detail: "skipped".into(),
+                    ms: 0,
+                }
+            } else {
+                let p = std::path::PathBuf::from(&repo_path);
+                crate::git::probe_network(&p, 800)
+            };
             let body = json!({
-                "repo": repo.path().display().to_string(),
+                "repo": repo_path,
                 "product": "Timeforge",
                 "version": env!("CARGO_PKG_VERSION"),
                 "partial": partial,

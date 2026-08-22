@@ -266,14 +266,26 @@ function syncHash(){
 }
 
 async function info(){
-  const d=await fetch('/api/info').then(r=>r.json());
-  document.getElementById('repoInfo').textContent=(d.repo||'')+' · v'+(d.version||'')+(d.partial?' · partial':'');
-  document.getElementById('partialBanner').classList.toggle('show',!!d.partial);
-  const net=d.network||{};
-  const pill=document.getElementById('netPill');
-  if(net.online){pill.textContent='online · '+net.ms+'ms';pill.className='net on'}
-  else if(net.has_remote){pill.textContent='offline';pill.className='net off'}
-  else{pill.textContent='local';pill.className='net'}
+  try{
+    const d=await fetch('/api/info?fast=1').then(r=>{
+      if(!r.ok) throw new Error('info HTTP '+r.status);
+      return r.json();
+    });
+    document.getElementById('repoInfo').textContent=(d.repo||'')+' · v'+(d.version||'')+(d.partial?' · partial':'');
+    document.getElementById('partialBanner').classList.toggle('show',!!d.partial);
+    const pill=document.getElementById('netPill');
+    pill.textContent='…'; pill.className='net';
+    // Network pill in background — must not block tree
+    fetch('/api/info').then(r=>r.json()).then(full=>{
+      const net=full.network||{};
+      if(net.detail==='skipped') return;
+      if(net.online){pill.textContent='online · '+net.ms+'ms';pill.className='net on'}
+      else if(net.has_remote){pill.textContent='offline';pill.className='net off'}
+      else{pill.textContent='local';pill.className='net'}
+    }).catch(()=>{pill.textContent='local';pill.className='net'});
+  }catch(e){
+    document.getElementById('repoInfo').textContent='error · '+(e.message||e);
+  }
 }
 
 async function loadCached(){
@@ -285,22 +297,16 @@ async function loadCached(){
     const enc=encodeURIComponent(r.id);
     return `<span class="chip" data-spec="${esc(spec)}" data-id="${esc(r.id)}" title="${esc(r.path)}"><span class="nm">${esc(spec)}</span><button type="button" class="x" data-rm="${enc}" title="Remove from disk" aria-label="Remove">×</button></span>`;
   }).join('');
-  el.querySelectorAll('.chip .nm, .chip').forEach(c=>{
-    if(c.classList.contains('x')) return;
-    c.addEventListener('click',e=>{
-      if(e.target.closest && e.target.closest('.x')) return;
-      const chip=c.closest?c.closest('.chip'):c;
-      if(!chip||!chip.dataset.spec) return;
-      document.getElementById('remoteSpec').value=chip.dataset.spec;
+  el.querySelectorAll('.chip').forEach(chip=>{
+    chip.querySelector('.nm')?.addEventListener('click',()=>{
+      document.getElementById('remoteSpec').value=chip.dataset.spec||'';
       openRemote(false);
     });
-  });
-  el.querySelectorAll('.chip .x').forEach(btn=>{
-    btn.addEventListener('click',async e=>{
+    chip.querySelector('.x')?.addEventListener('click',async e=>{
       e.preventDefault(); e.stopPropagation();
-      const id=decodeURIComponent(btn.dataset.rm||'');
+      const id=decodeURIComponent(chip.querySelector('.x').dataset.rm||'');
       if(!id) return;
-      if(!confirm('Remove cached clone “‘+id+'” from this machine?\n(Only ~/.timeforge/repos — not the GitHub repo)')) return;
+      if(!confirm('Remove cached clone "'+id+'" from this machine?\n(Only ~/.timeforge/repos — not the GitHub repo)')) return;
       try{
         const r=await fetch('/api/repos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
         const d=await r.json();
@@ -340,8 +346,9 @@ async function loadTree(path){
   const el=document.getElementById('tree');
   el.innerHTML='<div class="empty">Loading…</div>';
   try{
-    const d=await fetch('/api/tree?churn=0&path='+encodeURIComponent(treePath)).then(r=>r.json());
-    if(d.error) throw new Error(d.error);
+    const r=await fetch('/api/tree?churn=0&path='+encodeURIComponent(treePath));
+    const d=await r.json();
+    if(!r.ok || d.error) throw new Error(d.error||('tree HTTP '+r.status));
     treeRows=[];
     const html=[];
     if(d.parent!==null&&d.parent!==undefined){
@@ -599,13 +606,18 @@ document.addEventListener('keydown',e=>{
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.v===view));
   document.getElementById('outTitle').textContent=titles[view];
   renderPins();
-  info().then(loadCached).then(()=>loadTree(selectedPath.includes('/')?selectedPath.replace(/\/[^/]+$/,''):'')).then(()=>{
-    // Don't auto-hunt empty — wait for Ask unless ?q= present
+  const treeStart=selectedPath.includes('/')?selectedPath.replace(/\/[^/]+$/,''):'';
+  // Parallel boot — never block the file tree on network probe / cached list
+  Promise.allSettled([info(), loadCached(), loadTree(treeStart)]).then(()=>{
     if(view==='hunt'&&!document.getElementById('askBox').value.trim()){
       document.getElementById('out').innerHTML='<div class="empty">Ask one question above for a fast answer (keyword · #PR · path).</div>';
       return;
     }
     return run();
+  }).catch(e=>{
+    document.getElementById('out').innerHTML='<div class="empty">Boot error: '+esc(e.message||e)+'</div>';
+    const t=document.getElementById('tree');
+    if(t && t.textContent.indexOf('Loading')>=0) t.innerHTML='<div class="empty">Tree failed — try Open / Repair</div>';
   });
 })();
 </script>
