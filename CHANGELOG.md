@@ -1,3 +1,11 @@
+## 0.5.4 — Calibration pass
+
+- CLI: `--json` after ask query no longer swallowed into the question
+- `#N` miss returns `pr-miss` (no fake dig on `#1`)
+- Dig stopwords (`fix`, `doc`, …) — don't treat English as code tokens
+- Fix↔break: skip typo/doc noise; reject HTML/roff pickaxe needles
+- Answer ranking: dig vs pickaxe vs blame by evidence×confidence (blame needs query match)
+
 ## 0.5.3 — Ask answers with proof
 
 - ANSWER carries `evidence` (proven/strong/heuristic/weak), `method`, `confidence`, drill-downs

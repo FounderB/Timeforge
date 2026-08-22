@@ -43,7 +43,7 @@ pub fn fix_break_pairs(repo: &Repo, since: &str, limit: usize) -> Result<FixBrea
 
     let fixes: Vec<(CommitInfo, Vec<String>)> = git::parse_name_only_log(&out)
         .into_iter()
-        .filter(|(c, _)| is_fixish(&c.subject))
+        .filter(|(c, _)| is_fixish(&c.subject) && !is_noise_fix(&c.subject))
         .collect();
 
     let mut pairs = Vec::new();
@@ -195,23 +195,71 @@ fn extract_removed_needles(diff: &str) -> Vec<String> {
             continue;
         }
         let body = line[1..].trim();
-        if body.len() < 12 || body.len() > 120 {
-            continue;
-        }
-        if body.starts_with("//") || body.starts_with('#') || body.starts_with('*') {
-            continue;
-        }
-        // Skip pure punctuation / import noise
-        let alnum = body.chars().filter(|c| c.is_alphanumeric()).count();
-        if alnum < 8 {
+        if !is_codeish_needle(body) {
             continue;
         }
         out.push(body.to_string());
     }
-    // Prefer longer, more distinctive lines
     out.sort_by(|a, b| b.len().cmp(&a.len()));
     out.dedup();
     out
+}
+
+fn is_codeish_needle(body: &str) -> bool {
+    if body.len() < 12 || body.len() > 120 {
+        return false;
+    }
+    if body.starts_with("//")
+        || body.starts_with('#')
+        || body.starts_with('*')
+        || body.starts_with("<!--")
+    {
+        return false;
+    }
+    // Markup / man-page / roff / markdown noise — not causal code
+    if (body.contains('<') && body.contains('>'))
+        || body.contains("\\f")
+        || body.contains("\\-")
+        || body.contains("\\&")
+        || body.contains("]]>")
+        || body.contains("](")
+        || body.contains("http://")
+        || body.contains("https://")
+        || body.starts_with("- [")
+        || body.starts_with("* [")
+    {
+        return false;
+    }
+    let alnum = body.chars().filter(|c| c.is_alphanumeric()).count();
+    if alnum < 8 {
+        return false;
+    }
+    // Prefer lines that look like identifiers / calls, not prose
+    let has_ident = body.contains('_')
+        || body.contains('(')
+        || body.contains("::")
+        || body.contains('.')
+        || body.chars().any(|c| c.is_ascii_uppercase())
+            && body.chars().any(|c| c.is_ascii_lowercase());
+    if !has_ident && body.split_whitespace().count() > 8 {
+        return false; // long prose
+    }
+    true
+}
+
+fn is_noise_fix(subject: &str) -> bool {
+    let s = subject.to_lowercase();
+    let noise = ["typo", "readme", "changelog", "whitespace", "formatting", "clippy"];
+    if noise.iter().any(|w| s.contains(w)) {
+        // Keep if it also looks like a real bugfix
+        return !["panic", "deadlock", "crash", "secur", "overflow", "race", "null"]
+            .iter()
+            .any(|w| s.contains(w));
+    }
+    if s.starts_with("doc:") || s.starts_with("docs:") || s.starts_with("ci:") {
+        return !s.contains("panic") && !s.contains("deadlock");
+    }
+    false
 }
 
 fn blame_parent_touch(

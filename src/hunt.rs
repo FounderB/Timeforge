@@ -82,7 +82,7 @@ pub fn bug_hunt_ex(
         return Err("Ask one thing: a keyword, stack line, #PR, or file path".into());
     }
 
-    // Route: bare PR number → PR travel (fastest answer for that question)
+    // Route: bare PR number → PR travel; never dig "#12" as a code token
     if let Some(pr_q) = looks_like_pr(q) {
         match pr_travel(repo, &pr_q, if fast { 8 } else { 12 }) {
             Ok(pr) => {
@@ -103,7 +103,7 @@ pub fn bug_hunt_ex(
                     drilldowns: drilldowns_for(
                         path0.as_deref(),
                         Some(q),
-                        true,
+                        false,
                         false,
                         path0.is_some(),
                     ),
@@ -145,11 +145,26 @@ pub fn bug_hunt_ex(
                     mode: "pr-fast".into(),
                 });
             }
-            Err(_) => {}
+            Err(e) => {
+                let ms = t0.elapsed().as_millis() as u64;
+                return Ok(HuntReport {
+                    query: q.to_string(),
+                    path: path.map(|s| s.to_string()),
+                    hits: vec![],
+                    answer: None,
+                    why: None,
+                    dig: None,
+                    pairs: None,
+                    pr: None,
+                    map: None,
+                    summary: format!("No commit for #{pr_q} in {ms}ms — {e}"),
+                    elapsed_ms: ms,
+                    mode: "pr-miss".into(),
+                });
+            }
         }
     }
 
-    let code_like = looks_like_code_token(q);
     let bug_like = looks_like_bug_ask(q);
     let dig_limit = if fast { 8 } else { 16 };
     let why_limit = if fast { 6 } else { 10 };
@@ -177,13 +192,13 @@ pub fn bug_hunt_ex(
             )
         });
         let dig_h = scope.spawn(|| {
-            if q_owned.len() < 2 {
+            let Some(needle) = dig_needle(&q_owned) else {
                 return None;
-            }
+            };
             let r = Repo {
                 root: repo_path.clone(),
             };
-            dig_pattern(&r, &q_owned, dig_limit).ok()
+            dig_pattern(&r, needle, dig_limit).ok()
         });
         let pairs_h = scope.spawn(|| {
             let r = Repo {
@@ -211,7 +226,11 @@ pub fn bug_hunt_ex(
             if pair.method == "cochange" || pair.method == "none" {
                 continue;
             }
-            if !pair_matches_query(pair, q) && !q.is_empty() && !bug_like {
+            if is_noise_fix_subject(&pair.fix.subject) {
+                continue;
+            }
+            // Require a real query token match — "fix" alone must not surface random pairs
+            if !q.is_empty() && !pair_matches_query(pair, q) {
                 continue;
             }
             let evidence = evidence_for_method(&pair.method);
@@ -261,16 +280,22 @@ pub fn bug_hunt_ex(
 
     // —— Dig / archaeology ——
     if let Some(d) = &dig_r {
+        let needle = dig_needle(q).unwrap_or(q);
         if let Some(first) = &d.first {
-            let boost = if code_like { 90 } else { 74 };
+            let boost = if looks_like_code_token(needle) { 90 } else { 74 };
             hits.push(HuntHit {
                 kind: "first-seen".into(),
-                title: format!("`{q}` first seen in {} · {}", first.short, first.subject),
+                title: format!("`{needle}` first seen in {} · {}", first.short, first.subject),
                 detail: d.summary.clone(),
                 path: d.events.last().and_then(|e| e.files.first().cloned()),
                 commit: Some(first.short.clone()),
                 score: boost,
-                evidence: if code_like { "proven" } else { "strong" }.into(),
+                evidence: if looks_like_code_token(needle) {
+                    "proven"
+                } else {
+                    "strong"
+                }
+                .into(),
                 method: "dig".into(),
             });
         }
@@ -281,7 +306,7 @@ pub fn bug_hunt_ex(
                 detail: e.files.join(", "),
                 path: e.files.first().cloned(),
                 commit: Some(e.commit.short.clone()),
-                score: if code_like { 58 } else { 48 },
+                score: if looks_like_code_token(needle) { 58 } else { 48 },
                 evidence: "strong".into(),
                 method: "dig".into(),
             });
@@ -342,22 +367,21 @@ pub fn bug_hunt_ex(
         q.to_string()
     };
     let ms = t0.elapsed().as_millis() as u64;
-    let summary = if hits.is_empty() {
-        format!("No strong signal for `{label}` in {ms}ms — try a code token, #PR, or file path")
-    } else {
-        let ev = answer
-            .as_ref()
-            .map(|a| a.evidence.as_str())
-            .unwrap_or("?");
-        format!(
-            "`{label}` → [{}] {} · {} hits · {ms}ms",
-            ev,
-            answer
-                .as_ref()
-                .map(|a| a.headline.as_str())
-                .unwrap_or("?"),
-            hits.len(),
-        )
+    let summary = match (&answer, hits.is_empty()) {
+        (None, true) => {
+            format!("No strong signal for `{label}` in {ms}ms — try a code token, #PR, or file path")
+        }
+        (None, false) => {
+            format!("`{label}` · {} weak hits · {ms}ms — no proven answer (evidence too low)", hits.len())
+        }
+        (Some(a), _) => {
+            format!(
+                "`{label}` → [{}] {} · {} hits · {ms}ms",
+                a.evidence,
+                a.headline,
+                hits.len(),
+            )
+        }
     };
 
     Ok(HuntReport {
@@ -393,27 +417,51 @@ fn compose_answer(
     pairs: Option<&FixBreakReport>,
     map: Option<&BlameMap>,
 ) -> Option<HuntAnswer> {
-    // Prefer proven fix↔break (break commit), then dig first-seen, then best hit.
+    let mut cands: Vec<(i32, HuntAnswer)> = Vec::new();
+    let has_dig = dig.map(|d| !d.events.is_empty()).unwrap_or(false);
+    let has_pairs = pairs
+        .map(|p| {
+            p.pairs
+                .iter()
+                .any(|x| x.method == "pickaxe" || x.method == "blame")
+        })
+        .unwrap_or(false);
+
     if let Some(p) = pairs {
-        let best = p
-            .pairs
-            .iter()
-            .filter(|x| x.method == "pickaxe" || x.method == "blame")
-            .filter(|x| q.is_empty() || looks_like_bug_ask(q) || pair_matches_query(x, q))
-            .max_by_key(|x| {
-                let mut s = x.confidence as i32;
-                if pair_matches_query(x, q) {
-                    s += 10;
-                }
-                if x.method == "pickaxe" {
-                    s += 5;
-                }
-                s
-            });
-        if let Some(pair) = best {
-            if let Some(brk) = &pair.break_commit {
-                let path0 = pair.shared_files.first().cloned();
-                return Some(HuntAnswer {
+        for pair in &p.pairs {
+            if pair.method != "pickaxe" && pair.method != "blame" {
+                continue;
+            }
+            if is_noise_fix_subject(&pair.fix.subject) {
+                continue;
+            }
+            let matched = pair_matches_query(pair, q);
+            // Blame without a query match is too weak to headline
+            if pair.method == "blame" && !q.is_empty() && !matched {
+                continue;
+            }
+            // Never headline an unmatched pickaxe — random recent fixes lie
+            if pair.method == "pickaxe" && !q.is_empty() && !matched {
+                continue;
+            }
+            let Some(brk) = &pair.break_commit else {
+                continue;
+            };
+            let path0 = pair.shared_files.first().cloned();
+            let mut score =
+                (evidence_rank(evidence_for_method(&pair.method)) as i32) * 100 + pair.confidence as i32;
+            if matched {
+                score += 25;
+            }
+            if pair.method == "pickaxe" {
+                score += 18;
+            }
+            if pair.method == "blame" {
+                score -= 8;
+            }
+            cands.push((
+                score,
+                HuntAnswer {
                     headline: format!(
                         "{} likely introduced what {} fixed",
                         brk.short, pair.fix.short
@@ -427,71 +475,163 @@ fn compose_answer(
                     drilldowns: drilldowns_for(
                         path0.as_deref().or(path),
                         Some(q),
-                        dig.map(|d| !d.events.is_empty()).unwrap_or(false),
+                        has_dig,
                         true,
                         map.is_some() || path0.is_some(),
                     ),
-                });
-            }
+                },
+            ));
         }
     }
 
     if let Some(d) = dig {
         if let Some(first) = &d.first {
-            if looks_like_code_token(q) || q.len() >= 4 {
+            if let Some(needle) = dig_needle(q) {
                 let path0 = d.events.last().and_then(|e| e.files.first().cloned());
-                return Some(HuntAnswer {
-                    headline: format!("`{q}` first appeared in {}", first.short),
-                    commit: Some(first.short.clone()),
-                    path: path0.clone(),
-                    why: d.summary.clone(),
-                    evidence: if looks_like_code_token(q) {
-                        "proven"
-                    } else {
-                        "strong"
-                    }
-                    .into(),
-                    method: "dig".into(),
-                    confidence: if looks_like_code_token(q) { 90 } else { 74 },
-                    drilldowns: drilldowns_for(
-                        path0.as_deref().or(path),
-                        Some(q),
-                        true,
-                        pairs.map(|p| p.pairs.iter().any(|x| x.method == "pickaxe")).unwrap_or(false),
-                        map.is_some() || path0.is_some(),
-                    ),
-                });
+                let code = looks_like_code_token(needle);
+                let evidence = if code { "proven" } else { "strong" };
+                let conf: u32 = if code { 90 } else { 74 };
+                let score = (evidence_rank(evidence) as i32) * 100 + conf as i32;
+                cands.push((
+                    score,
+                    HuntAnswer {
+                        headline: format!("`{needle}` first appeared in {}", first.short),
+                        commit: Some(first.short.clone()),
+                        path: path0.clone(),
+                        why: d.summary.clone(),
+                        evidence: evidence.into(),
+                        method: "dig".into(),
+                        confidence: conf,
+                        drilldowns: drilldowns_for(
+                            path0.as_deref().or(path),
+                            Some(q),
+                            true,
+                            has_pairs,
+                            map.is_some() || path0.is_some(),
+                        ),
+                    },
+                ));
             }
         }
     }
 
-    let top = hits.first()?;
-    Some(HuntAnswer {
-        headline: top.title.clone(),
-        commit: top.commit.clone(),
-        path: top.path.clone(),
-        why: if top.detail.is_empty() {
-            format!("{} · {}", top.evidence, top.method)
+    if let Some(top) = hits.first() {
+        // Bare stopword asks ("fix") → why suspects are noise as a headline
+        if top.method == "why" && is_dig_stopword(q) {
+            // skip
         } else {
-            format!("{} · {} · {}", top.evidence, top.method, top.detail)
-        },
-        evidence: top.evidence.clone(),
-        method: top.method.clone(),
-        confidence: top.score,
-        drilldowns: drilldowns_for(
-            top.path.as_deref().or(path),
-            Some(q),
-            dig.map(|d| !d.events.is_empty()).unwrap_or(false),
-            pairs
-                .map(|p| {
-                    p.pairs
-                        .iter()
-                        .any(|x| x.method == "pickaxe" || x.method == "blame")
-                })
-                .unwrap_or(false),
-            map.is_some() || top.path.is_some(),
-        ),
-    })
+            let score = (evidence_rank(&top.evidence) as i32) * 100 + top.score as i32 - 30;
+            cands.push((
+                score,
+                HuntAnswer {
+                    headline: top.title.clone(),
+                    commit: top.commit.clone(),
+                    path: top.path.clone(),
+                    why: if top.detail.is_empty() {
+                        format!("{} · {}", top.evidence, top.method)
+                    } else {
+                        format!("{} · {} · {}", top.evidence, top.method, top.detail)
+                    },
+                    evidence: top.evidence.clone(),
+                    method: top.method.clone(),
+                    confidence: top.score,
+                    drilldowns: drilldowns_for(
+                        top.path.as_deref().or(path),
+                        Some(q),
+                        has_dig,
+                        has_pairs,
+                        map.is_some() || top.path.is_some(),
+                    ),
+                },
+            ));
+        }
+    }
+
+    cands.sort_by(|a, b| b.0.cmp(&a.0));
+    cands.into_iter().map(|(_, a)| a).next()
+}
+
+fn dig_needle(q: &str) -> Option<&str> {
+    let q = q.trim();
+    if q.len() < 2 {
+        return None;
+    }
+    if !q.contains(' ') && !is_dig_stopword(q) {
+        return Some(q);
+    }
+    let mut best: Option<&str> = None;
+    for t in q.split(|c: char| !c.is_alphanumeric() && c != '_' && c != '-') {
+        if t.len() < 3 || is_dig_stopword(t) {
+            continue;
+        }
+        best = Some(match best {
+            None => t,
+            Some(b) if looks_like_code_token(t) && !looks_like_code_token(b) => t,
+            Some(b) if t.len() > b.len() => t,
+            Some(b) => b,
+        });
+    }
+    best
+}
+
+fn is_dig_stopword(q: &str) -> bool {
+    let s = q.trim().to_lowercase();
+    if s.len() < 3 {
+        return true;
+    }
+    matches!(
+        s.as_str(),
+        "fix"
+            | "bug"
+            | "bugs"
+            | "error"
+            | "errors"
+            | "test"
+            | "tests"
+            | "add"
+            | "update"
+            | "merge"
+            | "release"
+            | "initial"
+            | "docs"
+            | "doc"
+            | "typo"
+            | "chore"
+            | "ci"
+            | "feat"
+            | "feature"
+            | "patch"
+            | "hotfix"
+            | "broken"
+            | "fail"
+            | "failed"
+            | "issue"
+            | "pr"
+            | "and"
+            | "the"
+            | "for"
+            | "with"
+            | "from"
+            | "this"
+            | "that"
+            | "when"
+            | "what"
+            | "why"
+    )
+}
+
+fn is_noise_fix_subject(subject: &str) -> bool {
+    let s = subject.to_lowercase();
+    let noise = ["typo", "readme", "changelog", "whitespace", "formatting", "clippy"];
+    if noise.iter().any(|w| s.contains(w)) {
+        return !["panic", "deadlock", "crash", "secur", "overflow", "race", "null"]
+            .iter()
+            .any(|w| s.contains(w));
+    }
+    if s.starts_with("doc:") || s.starts_with("docs:") {
+        return !s.contains("panic") && !s.contains("deadlock");
+    }
+    false
 }
 
 fn drilldowns_for(
@@ -547,10 +687,10 @@ fn pair_matches_query(pair: &FixBreakPair, q: &str) -> bool {
     }
     let tokens: Vec<&str> = q
         .split(|c: char| !c.is_alphanumeric() && c != '_' && c != '-')
-        .filter(|t| t.len() >= 3)
+        .filter(|t| t.len() >= 3 && !is_dig_stopword(t))
         .collect();
     if tokens.is_empty() {
-        return pair.shared_files.iter().any(|f| f.to_lowercase().contains(&q));
+        return false;
     }
     let hay = format!(
         "{} {} {} {}",

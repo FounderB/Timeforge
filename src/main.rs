@@ -25,8 +25,8 @@ struct Cli {
     #[arg(long, global = true)]
     update: bool,
 
-    /// Bare ask without subcommand: timeforge "stack line or keyword"
-    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+    /// Bare ask without subcommand: timeforge auth panic
+    #[arg(num_args = 0..)]
     query: Vec<String>,
 
     #[command(subcommand)]
@@ -37,8 +37,8 @@ struct Cli {
 enum Commands {
     /// Ask one thing — keyword, stack line, #PR, or path
     Ask {
-        /// Free-form question tokens
-        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        /// Free-form question tokens (flags like --json may follow)
+        #[arg(num_args = 0..)]
         query: Vec<String>,
         #[arg(long)]
         path: Option<PathBuf>,
