@@ -33,10 +33,7 @@ pub fn file_blame(repo: &Repo, path: &str, max_lines: usize) -> Result<BlameRepo
     let rel = git::rel_path(repo.path(), std::path::Path::new(path))
         .unwrap_or_else(|_| path.replace('\\', "/"));
 
-    let out = git::git_in(
-        repo.path(),
-        &["blame", "--line-porcelain", "--", &rel],
-    )?;
+    let out = git::git_in(repo.path(), &["blame", "--line-porcelain", "--", &rel])?;
 
     let mut lines = Vec::new();
     let mut hash = String::new();
@@ -46,9 +43,9 @@ pub fn file_blame(repo: &Repo, path: &str, max_lines: usize) -> Result<BlameRepo
     let mut counts: HashMap<String, usize> = HashMap::new();
 
     for raw in out.lines() {
-        if raw.starts_with('\t') {
+        if let Some(stripped) = raw.strip_prefix('\t') {
             line_no += 1;
-            let content = raw[1..].to_string();
+            let content = stripped.to_string();
             counts
                 .entry(author.clone())
                 .and_modify(|c| *c += 1)
@@ -70,7 +67,13 @@ pub fn file_blame(repo: &Repo, path: &str, max_lines: usize) -> Result<BlameRepo
                     .map(|d| d.format("%Y-%m-%d").to_string())
                     .unwrap_or_else(|| rest.to_string());
             }
-        } else if raw.len() >= 40 && raw.as_bytes().iter().take(40).all(|b| b.is_ascii_hexdigit()) {
+        } else if raw.len() >= 40
+            && raw
+                .as_bytes()
+                .iter()
+                .take(40)
+                .all(|b| b.is_ascii_hexdigit())
+        {
             hash = raw.split_whitespace().next().unwrap_or("").to_string();
         }
     }
@@ -84,7 +87,7 @@ pub fn file_blame(repo: &Repo, path: &str, max_lines: usize) -> Result<BlameRepo
             lines,
         })
         .collect();
-    authors.sort_by(|a, b| b.lines.cmp(&a.lines));
+    authors.sort_by_key(|b| std::cmp::Reverse(b.lines));
 
     Ok(BlameReport {
         path: rel,

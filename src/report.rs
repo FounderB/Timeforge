@@ -49,7 +49,12 @@ pub fn print_timeline(t: &Timeline) {
 
 pub fn print_blame(b: &BlameReport) {
     banner();
-    println!("{}  {} ({} lines)\n", "BLAME+".bold().cyan(), b.path.yellow(), b.total_lines);
+    println!(
+        "{}  {} ({} lines)\n",
+        "BLAME+".bold().cyan(),
+        b.path.yellow(),
+        b.total_lines
+    );
     println!("{}", "OWNERS".bold().underline());
     for a in b.authors.iter().take(8) {
         let bar = "█".repeat((a.percent / 5.0) as usize);
@@ -111,10 +116,7 @@ pub fn print_pr(p: &PrTravel) {
     );
     println!("\n{}", "FILES".bold().underline());
     for f in p.files.iter().take(20) {
-        println!(
-            "  +{:<4} -{:<4}  {}",
-            f.insertions, f.deletions, f.path
-        );
+        println!("  +{:<4} -{:<4}  {}", f.insertions, f.deletions, f.path);
     }
     if !p.later.is_empty() {
         println!("\n{}", "LATER TOUCHES".bold().underline());
@@ -133,7 +135,11 @@ pub fn print_pr(p: &PrTravel) {
 
 pub fn print_ghosts(g: &GhostReport) {
     banner();
-    println!("{}\n  {}\n", "GHOST AUTHORS".bold().red(), g.summary.dimmed());
+    println!(
+        "{}\n  {}\n",
+        "GHOST AUTHORS".bold().red(),
+        g.summary.dimmed()
+    );
     for a in &g.ghosts {
         println!(
             "  [{:^6}] {:20} silent {}d · last {} · {} files",
@@ -164,7 +170,11 @@ pub fn print_ghosts(g: &GhostReport) {
 
 pub fn print_dig(d: &ArchaeologyReport) {
     banner();
-    println!("{}  `{}`\n", "BUG ARCHAEOLOGY".bold().yellow(), d.pattern.cyan());
+    println!(
+        "{}  `{}`\n",
+        "BUG ARCHAEOLOGY".bold().yellow(),
+        d.pattern.cyan()
+    );
     println!("  {}\n", d.summary.dimmed());
     for e in &d.events {
         println!(
@@ -263,7 +273,11 @@ pub fn print_hunt(h: &HuntReport) {
 
 pub fn print_why(w: &WhyReport) {
     banner();
-    println!("{}  query: {}", "WHY DID IT BREAK?".bold().red(), w.query.yellow());
+    println!(
+        "{}  query: {}",
+        "WHY DID IT BREAK?".bold().red(),
+        w.query.yellow()
+    );
     if let Some(p) = &w.path_filter {
         println!("  path filter: {p}");
     }
@@ -281,10 +295,7 @@ pub fn print_why(w: &WhyReport) {
             println!("      · {}", r.dimmed());
         }
         if !s.files_touched.is_empty() {
-            println!(
-                "      files: {}",
-                s.files_touched.join(", ").dimmed()
-            );
+            println!("      files: {}", s.files_touched.join(", ").dimmed());
         }
     }
     println!("\n  {}\n", w.hint.dimmed());
@@ -292,7 +303,11 @@ pub fn print_why(w: &WhyReport) {
 
 pub fn print_heatmap(h: &Heatmap) {
     banner();
-    println!("{}  since {}\n", "OWNERSHIP HEATMAP".bold().cyan(), h.since.yellow());
+    println!(
+        "{}  since {}\n",
+        "OWNERSHIP HEATMAP".bold().cyan(),
+        h.since.yellow()
+    );
     let mut table = Table::new();
     table.load_preset(UTF8_FULL);
     table.set_header(vec!["Author", "Commits", "Files", "Risk"]);
@@ -387,16 +402,21 @@ pub fn print_contributors(c: &ContributorsReport) {
 
 pub fn print_churn(c: &ChurnReport) {
     banner();
-    println!("{}  since {}\n", "COMMIT CHURN".bold().cyan(), c.since.yellow());
-    let max = c.buckets.iter().map(|b| b.commits).max().unwrap_or(1).max(1);
+    println!(
+        "{}  since {}\n",
+        "COMMIT CHURN".bold().cyan(),
+        c.since.yellow()
+    );
+    let max = c
+        .buckets
+        .iter()
+        .map(|b| b.commits)
+        .max()
+        .unwrap_or(1)
+        .max(1);
     for b in &c.buckets {
         let w = ((b.commits as f64 / max as f64) * 24.0) as usize;
-        println!(
-            "  {}  {:>4}  {}",
-            b.week,
-            b.commits,
-            "▓".repeat(w).dimmed()
-        );
+        println!("  {}  {:>4}  {}", b.week, b.commits, "▓".repeat(w).dimmed());
     }
     println!();
 }
@@ -414,9 +434,7 @@ pub fn print_cached(list: &[CachedRepo]) {
             println!("      {}", remote.dimmed());
         }
     }
-    println!(
-        "\n  tip  timeforge repos rm owner/repo --yes · timeforge repos clean --yes\n"
-    );
+    println!("\n  tip  timeforge repos rm owner/repo --yes · timeforge repos clean --yes\n");
 }
 
 pub fn print_json<T: serde::Serialize>(v: &T) {

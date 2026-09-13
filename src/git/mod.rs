@@ -155,25 +155,35 @@ pub fn git_network_in(cwd: &Path, args: &[&str]) -> Result<String, String> {
 }
 
 pub fn is_partial_clone(repo: &Path) -> bool {
-    let filter = run_git(repo, &["config", "--get", "remote.origin.partialclonefilter"], false)
-        .unwrap_or_default();
-    let promisor = run_git(repo, &["config", "--get", "remote.origin.promisor"], false)
-        .unwrap_or_default();
-    let ext = run_git(repo, &["config", "--get", "extensions.partialclone"], false)
-        .unwrap_or_default();
-    !filter.trim().is_empty()
-        || promisor.trim() == "true"
-        || !ext.trim().is_empty()
+    let filter = run_git(
+        repo,
+        &["config", "--get", "remote.origin.partialclonefilter"],
+        false,
+    )
+    .unwrap_or_default();
+    let promisor =
+        run_git(repo, &["config", "--get", "remote.origin.promisor"], false).unwrap_or_default();
+    let ext =
+        run_git(repo, &["config", "--get", "extensions.partialclone"], false).unwrap_or_default();
+    !filter.trim().is_empty() || promisor.trim() == "true" || !ext.trim().is_empty()
 }
 
 pub fn materialize_partial(repo: &Path) -> Result<String, String> {
-    let _ = run_git(repo, &["config", "--unset", "remote.origin.promisor"], false);
+    let _ = run_git(
+        repo,
+        &["config", "--unset", "remote.origin.promisor"],
+        false,
+    );
     let _ = run_git(
         repo,
         &["config", "--unset", "remote.origin.partialclonefilter"],
         false,
     );
-    let _ = run_git(repo, &["config", "--unset", "extensions.partialclone"], false);
+    let _ = run_git(
+        repo,
+        &["config", "--unset", "extensions.partialclone"],
+        false,
+    );
     let refetch = git_network_in(repo, &["fetch", "--refetch", "--prune"]);
     if refetch.is_ok() {
         return Ok("fetched missing objects (--refetch)".into());

@@ -47,7 +47,7 @@ pub fn contributors(repo: &Repo, since: &str, limit: usize) -> Result<Contributo
             commits,
         })
         .collect();
-    contributors.sort_by(|a, b| b.commits.cmp(&a.commits));
+    contributors.sort_by_key(|b| std::cmp::Reverse(b.commits));
     contributors.truncate(limit);
 
     Ok(ContributorsReport {

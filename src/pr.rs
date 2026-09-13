@@ -105,7 +105,7 @@ pub fn pr_travel(repo: &Repo, query: &str, later_limit: usize) -> Result<PrTrave
             });
         }
     }
-    files.sort_by(|a, b| (b.insertions + b.deletions).cmp(&(a.insertions + a.deletions)));
+    files.sort_by_key(|b| std::cmp::Reverse(b.insertions + b.deletions));
 
     let authors = vec![commit.author.clone()];
 
@@ -162,10 +162,7 @@ pub fn pr_travel(repo: &Repo, query: &str, later_limit: usize) -> Result<PrTrave
 fn normalize_pr(q: &str) -> String {
     let s = q.trim().trim_start_matches('#');
     if let Some(rest) = s.strip_prefix("pull/") {
-        return rest
-            .chars()
-            .take_while(|c| c.is_ascii_digit())
-            .collect();
+        return rest.chars().take_while(|c| c.is_ascii_digit()).collect();
     }
     if let Some(idx) = s.rfind('/') {
         let last = &s[idx + 1..];

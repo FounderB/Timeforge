@@ -59,7 +59,7 @@ pub fn file_hotspots(repo: &Repo, since: &str, limit: usize) -> Result<HotspotsR
             }
         })
         .collect();
-    hotspots.sort_by(|a, b| b.score.cmp(&a.score));
+    hotspots.sort_by_key(|b| std::cmp::Reverse(b.score));
     hotspots.truncate(limit);
 
     Ok(HotspotsReport {

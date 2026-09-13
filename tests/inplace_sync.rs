@@ -48,15 +48,19 @@ fn setup_remote_pair() -> (tempfile::TempDir, std::path::PathBuf, std::path::Pat
     git(&seed, &["add", "README.md"]);
     git(&seed, &["commit", "-m", "initial"]);
 
-    git(root.path(), &["clone", "--bare", seed.to_str().unwrap(), bare.to_str().unwrap()]);
-
     git(
         root.path(),
         &[
             "clone",
+            "--bare",
+            seed.to_str().unwrap(),
             bare.to_str().unwrap(),
-            work.to_str().unwrap(),
         ],
+    );
+
+    git(
+        root.path(),
+        &["clone", bare.to_str().unwrap(), work.to_str().unwrap()],
     );
     git(&work, &["config", "user.email", "dev@example.com"]);
     git(&work, &["config", "user.name", "Dev"]);
@@ -96,10 +100,7 @@ fn update_stays_same_path_and_pulls_new_files() {
             .canonicalize()
             .unwrap_or_else(|_| std::path::PathBuf::from(&u.path))
     );
-    assert!(
-        work.join(".git").exists(),
-        ".git must still exist in place"
-    );
+    assert!(work.join(".git").exists(), ".git must still exist in place");
     assert!(
         marker.exists() && std::fs::read_to_string(&marker).unwrap() == "keep-me",
         "local untracked marker must survive in-place update"
@@ -211,7 +212,12 @@ fn partial_clone_materialize_stays_inplace() {
 
     git(
         root.path(),
-        &["clone", "--bare", seed.to_str().unwrap(), bare.to_str().unwrap()],
+        &[
+            "clone",
+            "--bare",
+            seed.to_str().unwrap(),
+            bare.to_str().unwrap(),
+        ],
     );
 
     // blobless partial clone from local bare (file:// required for --filter)

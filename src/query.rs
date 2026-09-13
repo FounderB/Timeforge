@@ -89,7 +89,10 @@ fn is_bare_pr(q: &str) -> bool {
     let s = q.trim();
     if s.starts_with('#') {
         let rest: String = s.chars().skip(1).collect();
-        return !rest.is_empty() && rest.chars().all(|c| c.is_ascii_digit() || c.is_whitespace());
+        return !rest.is_empty()
+            && rest
+                .chars()
+                .all(|c| c.is_ascii_digit() || c.is_whitespace());
     }
     s.chars().all(|c| c.is_ascii_digit()) && s.len() <= 6
 }
@@ -113,7 +116,10 @@ fn extract_pr(q: &str) -> Option<String> {
     }
     // "PR 42" / "pr#42"
     let lower = s.to_lowercase();
-    if let Some(idx) = lower.find("pr #").or_else(|| lower.find("pr#")).or_else(|| lower.find("pr "))
+    if let Some(idx) = lower
+        .find("pr #")
+        .or_else(|| lower.find("pr#"))
+        .or_else(|| lower.find("pr "))
     {
         let rest = &s[idx..];
         let digits: String = rest
@@ -231,9 +237,8 @@ fn looks_like_path(s: &str) -> bool {
     }
     s.contains('/')
         && !s.starts_with("http")
-        && s.chars().all(|c| {
-            c.is_alphanumeric() || matches!(c, '/' | '_' | '-' | '.' | '\\')
-        })
+        && s.chars()
+            .all(|c| c.is_alphanumeric() || matches!(c, '/' | '_' | '-' | '.' | '\\'))
 }
 
 fn normalize_path(s: &str) -> String {
@@ -287,9 +292,25 @@ pub fn looks_like_code_token(q: &str) -> bool {
 pub fn looks_like_bug_ask(q: &str) -> bool {
     let s = q.to_lowercase();
     [
-        "bug", "fix", "panic", "crash", "regress", "broken", "fail", "error", "unwrap",
-        "segfault", "null", "oom", "timeout", "flake", "deadlock", "overflow", "exception",
-        "traceback", "stack",
+        "bug",
+        "fix",
+        "panic",
+        "crash",
+        "regress",
+        "broken",
+        "fail",
+        "error",
+        "unwrap",
+        "segfault",
+        "null",
+        "oom",
+        "timeout",
+        "flake",
+        "deadlock",
+        "overflow",
+        "exception",
+        "traceback",
+        "stack",
     ]
     .iter()
     .any(|w| s.contains(w))

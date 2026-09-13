@@ -283,7 +283,9 @@ fn run() -> Result<(), String> {
                 }
                 Some(ReposAction::Rm { spec, yes }) => {
                     if !yes {
-                        eprintln!("Delete cached `{spec}` from disk? Re-run with --yes to confirm.");
+                        eprintln!(
+                            "Delete cached `{spec}` from disk? Re-run with --yes to confirm."
+                        );
                         std::process::exit(1);
                     }
                     let r = remove_cached(spec)?;
@@ -433,11 +435,7 @@ fn run() -> Result<(), String> {
                 report::print_dig(&d);
             }
         }
-        Some(Commands::Pairs {
-            since,
-            limit,
-            json,
-        }) => {
+        Some(Commands::Pairs { since, limit, json }) => {
             let p = fix_break_pairs(&repo, &since, limit)?;
             if json {
                 report::print_json(&p);
@@ -541,7 +539,11 @@ fn run() -> Result<(), String> {
                 }
             }
         }
-        Some(Commands::Serve { addr, expose, token }) => {
+        Some(Commands::Serve {
+            addr,
+            expose,
+            token,
+        }) => {
             timeforge::web::serve_with_opts(
                 &addr,
                 repo.path(),

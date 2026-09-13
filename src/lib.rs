@@ -16,8 +16,8 @@ pub mod report;
 mod stale;
 mod timeline;
 mod tree;
-mod why;
 pub mod web;
+mod why;
 
 pub use activity::{commit_churn, contributors};
 pub use archaeology::{dig_pattern, dig_pattern_ex};

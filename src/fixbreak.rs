@@ -69,7 +69,7 @@ pub fn fix_break_pairs_ex(
         pairs.push(pair);
     }
 
-    pairs.sort_by(|a, b| b.confidence.cmp(&a.confidence));
+    pairs.sort_by_key(|b| std::cmp::Reverse(b.confidence));
 
     let summary = format!(
         "{} fix↔break · {} via pickaxe/blame · {} weak",
@@ -150,11 +150,7 @@ fn pickaxe_introducer(
     fix_hash: &str,
     fast: bool,
 ) -> Option<(CommitInfo, Vec<String>, String)> {
-    let diff = git::git_in(
-        repo.path(),
-        &["show", "--format=", "--unified=0", fix_hash],
-    )
-    .ok()?;
+    let diff = git::git_in(repo.path(), &["show", "--format=", "--unified=0", fix_hash]).ok()?;
     let needle_cap = if fast { 3 } else { 6 };
     let needles = extract_removed_needles(&diff);
     for needle in needles.into_iter().take(needle_cap) {
@@ -181,23 +177,19 @@ fn pickaxe_introducer(
                 if first.is_none() {
                     first = Some(c);
                 }
-            } else if first.is_some() && !line.is_empty() && !line.contains('\x1f') {
-                if !files.contains(&line.to_string()) {
-                    files.push(line.to_string());
-                }
+            } else if first.is_some()
+                && !line.is_empty()
+                && !line.contains('\x1f')
+                && !files.contains(&line.to_string())
+            {
+                files.push(line.to_string());
             }
         }
         // Prefer reverse log without name-only — get files via show
         if let Some(c) = first {
             let shown = git::git_in(
                 repo.path(),
-                &[
-                    "show",
-                    "--pretty=format:",
-                    "--name-only",
-                    "--",
-                    &c.hash,
-                ],
+                &["show", "--pretty=format:", "--name-only", "--", &c.hash],
             )
             .unwrap_or_default();
             let mut f: Vec<String> = shown
@@ -227,7 +219,7 @@ fn extract_removed_needles(diff: &str) -> Vec<String> {
         }
         out.push(body.to_string());
     }
-    out.sort_by(|a, b| b.len().cmp(&a.len()));
+    out.sort_by_key(|b| std::cmp::Reverse(b.len()));
     out.dedup();
     out
 }
@@ -276,12 +268,21 @@ fn is_codeish_needle(body: &str) -> bool {
 
 fn is_noise_fix(subject: &str) -> bool {
     let s = subject.to_lowercase();
-    let noise = ["typo", "readme", "changelog", "whitespace", "formatting", "clippy"];
+    let noise = [
+        "typo",
+        "readme",
+        "changelog",
+        "whitespace",
+        "formatting",
+        "clippy",
+    ];
     if noise.iter().any(|w| s.contains(w)) {
         // Keep if it also looks like a real bugfix
-        return !["panic", "deadlock", "crash", "secur", "overflow", "race", "null"]
-            .iter()
-            .any(|w| s.contains(w));
+        return ![
+            "panic", "deadlock", "crash", "secur", "overflow", "race", "null",
+        ]
+        .iter()
+        .any(|w| s.contains(w));
     }
     if s.starts_with("doc:") || s.starts_with("docs:") || s.starts_with("ci:") {
         return !s.contains("panic") && !s.contains("deadlock");
@@ -299,14 +300,7 @@ fn blame_parent_touch(
     // Which lines changed in this file?
     let diff = git::git_in(
         repo.path(),
-        &[
-            "show",
-            "--format=",
-            "--unified=0",
-            fix_hash,
-            "--",
-            file,
-        ],
+        &["show", "--format=", "--unified=0", fix_hash, "--", file],
     )
     .ok()?;
     let mut line_no: Option<u32> = None;

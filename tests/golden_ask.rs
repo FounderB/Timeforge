@@ -58,13 +58,7 @@ fn parse_stack_like_query() {
 fn ask_path_scoped_story() {
     let dir = seed_story_repo();
     let repo = timeforge::Repo::discover(dir.path()).unwrap();
-    let h = timeforge::bug_hunt(
-        &repo,
-        "panic at src/auth.rs:1",
-        None,
-        "10 years ago",
-    )
-    .unwrap();
+    let h = timeforge::bug_hunt(&repo, "panic at src/auth.rs:1", None, "10 years ago").unwrap();
     assert_eq!(h.parsed.path.as_deref(), Some("src/auth.rs"));
     assert!(h.answer.is_some() || !h.hits.is_empty());
     assert!(h.elapsed_ms < 5_000, "too slow: {}ms", h.elapsed_ms);
@@ -116,7 +110,11 @@ fn ask_speed_code_token_skips_pairs() {
     let h = timeforge::bug_hunt(&repo, "UNIQUE_STACK_MARKER", None, "10 years ago").unwrap();
     // Fast path: no pairs for pure code token
     assert!(h.pairs.is_none() || h.pairs.as_ref().unwrap().pairs.is_empty() || h.elapsed_ms < 2000);
-    assert!(h.elapsed_ms < 2000, "expected fast dig, got {}ms", h.elapsed_ms);
+    assert!(
+        h.elapsed_ms < 2000,
+        "expected fast dig, got {}ms",
+        h.elapsed_ms
+    );
 }
 
 /// Soft golden checks against ~/.timeforge cache when present.

@@ -109,10 +109,7 @@ pub fn list_tree_ex(repo: &Repo, path: &str, with_churn: bool) -> Result<TreeLis
     })
 }
 
-fn churn_counts(
-    repo: &Repo,
-    dir: &str,
-) -> Result<std::collections::HashMap<String, u32>, String> {
+fn churn_counts(repo: &Repo, dir: &str) -> Result<std::collections::HashMap<String, u32>, String> {
     let mut args = vec![
         "log".to_string(),
         "--since=180 days ago".into(),
@@ -166,7 +163,11 @@ fn icon_for(name: &str, kind: &str) -> String {
         "🐹".into()
     } else if lower.ends_with(".md") {
         "📝".into()
-    } else if lower.ends_with(".json") || lower.ends_with(".toml") || lower.ends_with(".yaml") || lower.ends_with(".yml") {
+    } else if lower.ends_with(".json")
+        || lower.ends_with(".toml")
+        || lower.ends_with(".yaml")
+        || lower.ends_with(".yml")
+    {
         "⚙️".into()
     } else if lower.ends_with(".html") || lower.ends_with(".css") {
         "🎨".into()

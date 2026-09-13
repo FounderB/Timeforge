@@ -45,7 +45,10 @@ pub fn ownership_heatmap(repo: &Repo, since: &str, path: Option<&str>) -> Result
             *commit_counts.entry(a.to_string()).or_insert(0) += 1;
         } else if !line.is_empty() {
             if let Some(a) = &current {
-                file_sets.entry(a.clone()).or_default().insert(line.to_string());
+                file_sets
+                    .entry(a.clone())
+                    .or_default()
+                    .insert(line.to_string());
             }
         }
     }
@@ -69,7 +72,7 @@ pub fn ownership_heatmap(repo: &Repo, since: &str, path: Option<&str>) -> Result
             }
         })
         .collect();
-    owners.sort_by(|a, b| b.commits.cmp(&a.commits));
+    owners.sort_by_key(|b| std::cmp::Reverse(b.commits));
 
     let total: u32 = owners.iter().map(|o| o.commits).sum::<u32>().max(1);
     let top = owners.first().map(|o| o.commits).unwrap_or(0);

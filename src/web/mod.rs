@@ -7,8 +7,8 @@ use tiny_http::{Header, Method, Request, Response, Server};
 use crate::{
     blame_map, blast_radius, bug_hunt_ex, commit_churn, contributors, dig_pattern, file_blame,
     file_hotspots, file_timeline, fix_break_pairs, ghost_authors, list_cached, list_tree_ex,
-    open_github, ownership_heatmap, pr_travel, remote, repair_cache, repair_current,
-    stale_files, update_repo, why_broke, Repo,
+    open_github, ownership_heatmap, pr_travel, remote, repair_cache, repair_current, stale_files,
+    update_repo, why_broke, Repo,
 };
 
 const INDEX: &str = include_str!("../../web/index.html");
@@ -43,7 +43,7 @@ pub fn serve_with_opts(addr: &str, repo_path: &Path, opts: ServeOpts) -> Result<
     let server = Server::http(addr).map_err(|e| e.to_string())?;
     eprintln!("Timeforge UI → http://{addr}");
     eprintln!("Repo: {}", state.lock().unwrap().path().display());
-    if let Some(_) = &token {
+    if token.is_some() {
         eprintln!("Auth: token required (?token= / Authorization: Bearer / X-Timeforge-Token)");
     } else if opts.expose {
         eprintln!("Warning: --expose without --token — UI is open to the network");
@@ -75,8 +75,11 @@ pub fn serve_with_opts(addr: &str, repo_path: &Path, opts: ServeOpts) -> Result<
                     .with_status_code(204)
                     .with_header(Header::from_bytes("Access-Control-Allow-Origin", "*").unwrap())
                     .with_header(
-                        Header::from_bytes("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS")
-                            .unwrap(),
+                        Header::from_bytes(
+                            "Access-Control-Allow-Methods",
+                            "GET,POST,DELETE,OPTIONS",
+                        )
+                        .unwrap(),
                     )
                     .with_header(
                         Header::from_bytes(
@@ -230,7 +233,11 @@ pub fn serve_with_opts(addr: &str, repo_path: &Path, opts: ServeOpts) -> Result<
             let parsed = serde_json::from_str::<serde_json::Value>(&body).ok();
             let spec = parsed
                 .as_ref()
-                .and_then(|v| v.get("spec").and_then(|s| s.as_str()).map(|s| s.to_string()))
+                .and_then(|v| {
+                    v.get("spec")
+                        .and_then(|s| s.as_str())
+                        .map(|s| s.to_string())
+                })
                 .or_else(|| query_param(&format!("?{body}"), "spec"));
             let repair = parsed
                 .as_ref()
@@ -293,9 +300,7 @@ pub fn serve_with_opts(addr: &str, repo_path: &Path, opts: ServeOpts) -> Result<
 
         if url == "/api/repair" && method == Method::Post {
             let path = state.lock().unwrap().path().to_path_buf();
-            match repair_current(&Repo {
-                root: path.clone(),
-            }) {
+            match repair_current(&Repo { root: path.clone() }) {
                 Ok(u) => {
                     if let Ok(repo) = Repo::discover(&path) {
                         *state.lock().unwrap() = repo;
@@ -359,7 +364,10 @@ pub fn serve_with_opts(addr: &str, repo_path: &Path, opts: ServeOpts) -> Result<
         }
 
         if url.starts_with("/api/pr") {
-            let prq = q.clone().or_else(|| query_param(&url, "pr")).unwrap_or_default();
+            let prq = q
+                .clone()
+                .or_else(|| query_param(&url, "pr"))
+                .unwrap_or_default();
             let repo = state.lock().unwrap().clone();
             match pr_travel(&repo, &prq, 12) {
                 Ok(p) => {

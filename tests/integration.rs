@@ -163,8 +163,14 @@ fn tree_lists_dirs_and_files() {
     let dir = seed_repo();
     let repo = timeforge::Repo::discover(dir.path()).unwrap();
     let root = timeforge::list_tree(&repo, "").unwrap();
-    assert!(root.entries.iter().any(|e| e.name == "src" && e.kind == "tree"));
-    assert!(root.entries.iter().any(|e| e.name == "README.md" && e.kind == "blob"));
+    assert!(root
+        .entries
+        .iter()
+        .any(|e| e.name == "src" && e.kind == "tree"));
+    assert!(root
+        .entries
+        .iter()
+        .any(|e| e.name == "README.md" && e.kind == "blob"));
     let src = timeforge::list_tree(&repo, "src").unwrap();
     assert!(src.entries.iter().any(|e| e.name == "auth.rs"));
     assert_eq!(src.parent.as_deref(), Some(""));
@@ -216,13 +222,17 @@ fn hunt_ranks_auth_and_ignores_garbage() {
     );
     let bad = timeforge::bug_hunt(&repo, "qqqqqqqqnofind", None, "10 years ago").unwrap();
     assert!(
-        bad.hits.iter().all(|h| h.kind != "suspect" || h.score >= 18),
+        bad.hits
+            .iter()
+            .all(|h| h.kind != "suspect" || h.score >= 18),
         "garbage query should not produce weak suspects: {:?}",
         bad.hits
     );
-    assert!(
-        bad.dig.as_ref().map(|d| d.events.is_empty()).unwrap_or(true)
-    );
+    assert!(bad
+        .dig
+        .as_ref()
+        .map(|d| d.events.is_empty())
+        .unwrap_or(true));
 }
 
 #[test]
@@ -292,9 +302,6 @@ fn pairs_finds_fix_commit() {
     let dir = seed_repo();
     let repo = timeforge::Repo::discover(dir.path()).unwrap();
     let p = timeforge::fix_break_pairs(&repo, "10 years ago", 10).unwrap();
-    assert!(
-        !p.pairs.is_empty(),
-        "seed has 'fix auth panic' commit"
-    );
+    assert!(!p.pairs.is_empty(), "seed has 'fix auth panic' commit");
     assert!(p.pairs.iter().any(|x| x.fix.subject.contains("fix")));
 }

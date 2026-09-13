@@ -176,13 +176,11 @@ pub fn ghost_authors(
         });
     }
     path_risks.sort_by(|a, b| {
-        a.bus_factor
-            .cmp(&b.bus_factor)
-            .then(
-                b.top_percent
-                    .partial_cmp(&a.top_percent)
-                    .unwrap_or(std::cmp::Ordering::Equal),
-            )
+        a.bus_factor.cmp(&b.bus_factor).then(
+            b.top_percent
+                .partial_cmp(&a.top_percent)
+                .unwrap_or(std::cmp::Ordering::Equal),
+        )
     });
     path_risks.truncate(path_limit.max(10));
 

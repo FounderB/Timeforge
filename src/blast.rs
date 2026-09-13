@@ -28,7 +28,7 @@ pub fn blast_radius(repo: &Repo, path: &str, limit: usize) -> Result<BlastReport
             co_changes,
         })
         .collect();
-    related.sort_by(|a, b| b.co_changes.cmp(&a.co_changes));
+    related.sort_by_key(|b| std::cmp::Reverse(b.co_changes));
 
     let summary = if related.is_empty() {
         "No co-change history — new or isolated file.".into()

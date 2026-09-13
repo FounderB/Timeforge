@@ -49,7 +49,7 @@ pub fn why_broke(
         .map(|(c, files)| score_commit(c, &files, keyword))
         .collect();
 
-    suspects.sort_by(|a, b| b.score.cmp(&a.score));
+    suspects.sort_by_key(|b| std::cmp::Reverse(b.score));
     suspects.retain(|s| s.score > 0);
     suspects.truncate(limit);
 
@@ -58,7 +58,9 @@ pub fn why_broke(
         query,
         path_filter: path.map(|s| s.to_string()),
         suspects,
-        hint: "Scores prefer keyword/path causality — fix/revert commits are down-ranked as culprits.".into(),
+        hint:
+            "Scores prefer keyword/path causality — fix/revert commits are down-ranked as culprits."
+                .into(),
     })
 }
 
@@ -81,7 +83,16 @@ fn score_commit(commit: CommitInfo, files: &[String], keyword: Option<&str>) -> 
     }
 
     // Risky *change* language (not "we fixed it")
-    for word in ["wip", "temp", "hack", "todo", "workaround", "break", "oops", "experimental"] {
+    for word in [
+        "wip",
+        "temp",
+        "hack",
+        "todo",
+        "workaround",
+        "break",
+        "oops",
+        "experimental",
+    ] {
         if subj.contains(word) {
             score += 12;
             reasons.push(format!("risky subject token `{word}`"));
@@ -104,7 +115,10 @@ fn score_commit(commit: CommitInfo, files: &[String], keyword: Option<&str>) -> 
             }
             if !matched {
                 for part in k.split(|c: char| !c.is_alphanumeric()) {
-                    if part.len() >= 3 && (subj.contains(part) || files.iter().any(|f| f.to_lowercase().contains(part))) {
+                    if part.len() >= 3
+                        && (subj.contains(part)
+                            || files.iter().any(|f| f.to_lowercase().contains(part)))
+                    {
                         score += 16;
                         reasons.push(format!("token `{part}`"));
                         matched = true;
@@ -160,7 +174,11 @@ fn score_commit(commit: CommitInfo, files: &[String], keyword: Option<&str>) -> 
     }
 }
 
-pub fn co_changed_files(repo: &Repo, path: &str, limit: usize) -> Result<HashMap<String, u32>, String> {
+pub fn co_changed_files(
+    repo: &Repo,
+    path: &str,
+    limit: usize,
+) -> Result<HashMap<String, u32>, String> {
     let rel = git::rel_path(repo.path(), std::path::Path::new(path))
         .unwrap_or_else(|_| path.replace('\\', "/"));
 
@@ -183,7 +201,7 @@ pub fn co_changed_files(repo: &Repo, path: &str, limit: usize) -> Result<HashMap
     }
 
     let mut v: Vec<_> = counts.into_iter().collect();
-    v.sort_by(|a, b| b.1.cmp(&a.1));
+    v.sort_by_key(|b| std::cmp::Reverse(b.1));
     v.truncate(limit);
     Ok(v.into_iter().collect())
 }

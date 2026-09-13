@@ -229,8 +229,7 @@ pub fn bug_hunt_ex(
                 evidence: evidence.into(),
                 method: pair.method.clone(),
             });
-            if hits.iter().filter(|h| h.kind == "fix-break").count() >= if fast { 2 } else { 5 }
-            {
+            if hits.iter().filter(|h| h.kind == "fix-break").count() >= if fast { 2 } else { 5 } {
                 break;
             }
         }
@@ -239,10 +238,17 @@ pub fn bug_hunt_ex(
     if let Some(d) = &dig_r {
         let needle = parsed.dig_needle.as_deref().unwrap_or(&q);
         if let Some(first) = &d.first {
-            let boost = if looks_like_code_token(needle) { 90 } else { 74 };
+            let boost = if looks_like_code_token(needle) {
+                90
+            } else {
+                74
+            };
             hits.push(HuntHit {
                 kind: "first-seen".into(),
-                title: format!("`{needle}` first seen in {} · {}", first.short, first.subject),
+                title: format!(
+                    "`{needle}` first seen in {} · {}",
+                    first.short, first.subject
+                ),
                 detail: d.summary.clone(),
                 path: d
                     .events
@@ -267,7 +273,11 @@ pub fn bug_hunt_ex(
                 detail: e.files.join(", "),
                 path: e.files.first().cloned(),
                 commit: Some(e.commit.short.clone()),
-                score: if looks_like_code_token(needle) { 58 } else { 48 },
+                score: if looks_like_code_token(needle) {
+                    58
+                } else {
+                    48
+                },
                 evidence: "strong".into(),
                 method: "dig".into(),
             });
@@ -292,9 +302,7 @@ pub fn bug_hunt_ex(
         }
     }
 
-    let map = path_owned
-        .as_deref()
-        .and_then(|p| blame_map(repo, p).ok());
+    let map = path_owned.as_deref().and_then(|p| blame_map(repo, p).ok());
     if let Some(m) = &map {
         hits.push(HuntHit {
             kind: "blame-map".into(),
@@ -608,17 +616,26 @@ fn compose_answer(
         }
     }
 
-    cands.sort_by(|a, b| b.0.cmp(&a.0));
+    cands.sort_by_key(|b| std::cmp::Reverse(b.0));
     cands.into_iter().map(|(_, a)| a).next()
 }
 
 fn is_noise_fix_subject(subject: &str) -> bool {
     let s = subject.to_lowercase();
-    let noise = ["typo", "readme", "changelog", "whitespace", "formatting", "clippy"];
+    let noise = [
+        "typo",
+        "readme",
+        "changelog",
+        "whitespace",
+        "formatting",
+        "clippy",
+    ];
     if noise.iter().any(|w| s.contains(w)) {
-        return !["panic", "deadlock", "crash", "secur", "overflow", "race", "null"]
-            .iter()
-            .any(|w| s.contains(w));
+        return ![
+            "panic", "deadlock", "crash", "secur", "overflow", "race", "null",
+        ]
+        .iter()
+        .any(|w| s.contains(w));
     }
     if s.starts_with("doc:") || s.starts_with("docs:") {
         return !s.contains("panic") && !s.contains("deadlock");

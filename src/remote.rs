@@ -67,10 +67,7 @@ pub fn open_github(
 }
 
 pub fn parse_github_spec(spec: &str) -> Result<(String, String), String> {
-    let s = spec
-        .trim()
-        .trim_end_matches('/')
-        .trim_end_matches(".git");
+    let s = spec.trim().trim_end_matches('/').trim_end_matches(".git");
     let s = s
         .strip_prefix("https://")
         .or_else(|| s.strip_prefix("http://"))
@@ -219,7 +216,10 @@ pub fn is_remote_spec(spec: &str) -> bool {
 pub fn repair_cache(owner: &str, name: &str) -> Result<Repo, String> {
     let cache = cache_dir()?.join(format!("{owner}_{name}"));
     if cache.join(".git").exists() {
-        eprintln!("Timeforge: repairing {owner}/{name} in place at {}", cache.display());
+        eprintln!(
+            "Timeforge: repairing {owner}/{name} in place at {}",
+            cache.display()
+        );
         let repo = Repo::discover(&cache)?;
         let _ = sync_inplace(&repo, true)?;
         return Repo::discover(&cache);
@@ -338,9 +338,8 @@ pub fn update_repo(repo: &Repo) -> Result<UpdateResult, String> {
 /// Repair current clone **in the same directory** (no wipe / no second download root).
 pub fn repair_current(repo: &Repo) -> Result<UpdateResult, String> {
     let path = repo.path().to_path_buf();
-    let _ = git::git_network_in(&path, &["remote", "get-url", "origin"]).map_err(|_| {
-        "no origin remote — cannot repair in place".to_string()
-    })?;
+    let _ = git::git_network_in(&path, &["remote", "get-url", "origin"])
+        .map_err(|_| "no origin remote — cannot repair in place".to_string())?;
     let mut result = sync_inplace(repo, true)?;
     // Verify history is usable after repair
     if git::git_in(&path, &["log", "-1", "--oneline"]).is_err() {

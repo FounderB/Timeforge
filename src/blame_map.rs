@@ -28,8 +28,7 @@ pub struct BlameMap {
 /// Collapse blame into ownership zones (consecutive lines by same commit).
 pub fn blame_map(repo: &Repo, path: &str) -> Result<BlameMap, String> {
     let blame = file_blame(repo, path, usize::MAX)?;
-    let mut author_colors: std::collections::HashMap<String, u8> =
-        std::collections::HashMap::new();
+    let mut author_colors: std::collections::HashMap<String, u8> = std::collections::HashMap::new();
     let mut next_color = 0u8;
 
     let mut blocks: Vec<BlameBlock> = Vec::new();
@@ -75,7 +74,7 @@ pub fn blame_map(repo: &Repo, path: &str) -> Result<BlameMap, String> {
     } else if top_share >= 50.0 {
         2
     } else {
-        blame.authors.len().min(5).max(1)
+        blame.authors.len().clamp(1, 5)
     };
 
     let summary = if blame.authors.is_empty() {

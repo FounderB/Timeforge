@@ -1,3 +1,9 @@
+## 0.6.4 — Stale speed + Ask README + CI lint
+
+- `stale_files`: one `git log --name-only` pass instead of N× `git log -1`
+- README Ask mode section no longer truncates mid-fence
+- CI: `cargo fmt --check` + `cargo clippy --all-targets -- -D warnings`
+
 ## 0.6.3 — Unlock hunt + bind guard
 
 - `/api/hunt` (and other git-heavy routes) clone `Repo` under the lock then unlock before long git work
