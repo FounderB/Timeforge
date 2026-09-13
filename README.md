@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://github.com/FounderB/Timeforge/actions"><img src="https://img.shields.io/badge/build-rust-38bdf8?style=flat-square" alt="Rust"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-5eead4?style=flat-square" alt="MIT"/></a>
-  <img src="https://img.shields.io/badge/version-0.5-0d1520?style=flat-square&labelColor=5eead4&color=0d1520" alt="v0.5"/>
+  <img src="https://img.shields.io/badge/version-0.6.3-0d1520?style=flat-square&labelColor=5eead4&color=0d1520" alt="v0.6.3"/>
   <img src="https://img.shields.io/badge/FounderB-stack-38bdf8?style=flat-square" alt="FounderB"/>
 </p>
 

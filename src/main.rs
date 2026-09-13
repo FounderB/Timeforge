@@ -55,7 +55,7 @@ enum Commands {
         #[arg(
             long,
             alias = "full",
-            help = "delete broken partial/promisor cache and re-clone fully"
+            help = "in-place repair: fetch/materialize missing objects (same path, never wipe-reclone)"
         )]
         repair: bool,
     },
@@ -64,7 +64,7 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
-    /// Repair current clone (materialize or full re-clone from origin)
+    /// Repair current clone in place (fetch/materialize; same path)
     Repair {
         #[arg(long)]
         json: bool,
@@ -80,6 +80,12 @@ enum Commands {
     Serve {
         #[arg(long, default_value = "127.0.0.1:8790")]
         addr: String,
+        /// Allow binding beyond loopback (0.0.0.0 / LAN). Prefer --token instead.
+        #[arg(long)]
+        expose: bool,
+        /// Shared secret for API access (required with non-loopback unless --expose)
+        #[arg(long, env = "TIMEFORGE_TOKEN")]
+        token: Option<String>,
     },
 
     // —— power tools (hidden from default help; still callable) ——
@@ -535,8 +541,12 @@ fn run() -> Result<(), String> {
                 }
             }
         }
-        Some(Commands::Serve { addr }) => {
-            timeforge::web::serve(&addr, repo.path())?;
+        Some(Commands::Serve { addr, expose, token }) => {
+            timeforge::web::serve_with_opts(
+                &addr,
+                repo.path(),
+                timeforge::web::ServeOpts { expose, token },
+            )?;
         }
     }
     Ok(())

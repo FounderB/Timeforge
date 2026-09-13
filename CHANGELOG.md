@@ -1,3 +1,10 @@
+## 0.6.3 — Unlock hunt + bind guard
+
+- `/api/hunt` (and other git-heavy routes) clone `Repo` under the lock then unlock before long git work
+- Refuse non-loopback `serve --addr` without `--expose` or `--token` / `TIMEFORGE_TOKEN`
+- `--repair` help text matches in-place repair (never wipe-reclone)
+- README version badge → 0.6.3
+
 ## 0.6.2 — Fix UI stuck on Loading
 
 - `/api/info` no longer holds the repo lock during `ls-remote` (blocked the whole UI)

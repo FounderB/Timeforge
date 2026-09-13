@@ -2,7 +2,7 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use serde_json::json;
-use tiny_http::{Header, Method, Response, Server};
+use tiny_http::{Header, Method, Request, Response, Server};
 
 use crate::{
     blame_map, blast_radius, bug_hunt_ex, commit_churn, contributors, dig_pattern, file_blame,
@@ -15,12 +15,39 @@ const INDEX: &str = include_str!("../../web/index.html");
 const ICON_PNG: &[u8] = include_bytes!("../../web/icon.png");
 const FAVICON_PNG: &[u8] = include_bytes!("../../web/favicon.png");
 
+#[derive(Clone, Default)]
+pub struct ServeOpts {
+    pub expose: bool,
+    pub token: Option<String>,
+}
+
 pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
+    serve_with_opts(addr, repo_path, ServeOpts::default())
+}
+
+pub fn serve_with_opts(addr: &str, repo_path: &Path, opts: ServeOpts) -> Result<(), String> {
+    let token = opts
+        .token
+        .as_ref()
+        .map(|t| t.trim().to_string())
+        .filter(|t| !t.is_empty());
+
+    if !is_loopback_bind(addr) && !opts.expose && token.is_none() {
+        return Err(format!(
+            "refusing non-loopback bind `{addr}` without `--expose` or `--token` / TIMEFORGE_TOKEN"
+        ));
+    }
+
     let initial = Repo::discover(repo_path)?;
     let state = Mutex::new(initial);
     let server = Server::http(addr).map_err(|e| e.to_string())?;
     eprintln!("Timeforge UI → http://{addr}");
     eprintln!("Repo: {}", state.lock().unwrap().path().display());
+    if let Some(_) = &token {
+        eprintln!("Auth: token required (?token= / Authorization: Bearer / X-Timeforge-Token)");
+    } else if opts.expose {
+        eprintln!("Warning: --expose without --token — UI is open to the network");
+    }
     eprintln!("Open remotes via UI or: timeforge open owner/repo");
 
     for mut request in server.incoming_requests() {
@@ -52,7 +79,11 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
                             .unwrap(),
                     )
                     .with_header(
-                        Header::from_bytes("Access-Control-Allow-Headers", "Content-Type").unwrap(),
+                        Header::from_bytes(
+                            "Access-Control-Allow-Headers",
+                            "Content-Type, Authorization, X-Timeforge-Token",
+                        )
+                        .unwrap(),
                     ),
             );
             continue;
@@ -70,6 +101,19 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
         if url.starts_with("/favicon") {
             let _ = request.respond(respond_bytes(200, FAVICON_PNG, "image/png"));
             continue;
+        }
+
+        if url.starts_with("/api/") {
+            if let Some(tok) = &token {
+                if !authorize(&request, &url, tok) {
+                    let _ = request.respond(respond(
+                        401,
+                        r#"{"error":"unauthorized"}"#,
+                        "application/json",
+                    ));
+                    continue;
+                }
+            }
         }
 
         if url == "/api/info" || url.starts_with("/api/info?") {
@@ -200,6 +244,7 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
                 ));
                 continue;
             };
+            // Git clone/fetch must not hold the UI mutex.
             let opened = remote::parse_github_spec(&spec).and_then(|(o, n)| {
                 if repair {
                     repair_cache(&o, &n)
@@ -229,7 +274,7 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
         }
 
         if url == "/api/update" && method == Method::Post {
-            let repo = state.lock().unwrap();
+            let repo = state.lock().unwrap().clone();
             match update_repo(&repo) {
                 Ok(u) => {
                     let body = serde_json::to_string_pretty(&u).unwrap_or_default();
@@ -277,7 +322,7 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
             let with_churn = query_param(&url, "churn")
                 .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
                 .unwrap_or(false);
-            let repo = state.lock().unwrap();
+            let repo = state.lock().unwrap().clone();
             match list_tree_ex(&repo, &dir, with_churn) {
                 Ok(t) => {
                     let body = serde_json::to_string_pretty(&t).unwrap_or_default();
@@ -296,7 +341,7 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
 
         if url.starts_with("/api/map") {
             let path = path_q.clone().unwrap_or_else(|| "README.md".into());
-            let repo = state.lock().unwrap();
+            let repo = state.lock().unwrap().clone();
             match blame_map(&repo, &path) {
                 Ok(m) => {
                     let body = serde_json::to_string_pretty(&m).unwrap_or_default();
@@ -315,7 +360,7 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
 
         if url.starts_with("/api/pr") {
             let prq = q.clone().or_else(|| query_param(&url, "pr")).unwrap_or_default();
-            let repo = state.lock().unwrap();
+            let repo = state.lock().unwrap().clone();
             match pr_travel(&repo, &prq, 12) {
                 Ok(p) => {
                     let body = serde_json::to_string_pretty(&p).unwrap_or_default();
@@ -333,7 +378,7 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
         }
 
         if url.starts_with("/api/ghosts") {
-            let repo = state.lock().unwrap();
+            let repo = state.lock().unwrap().clone();
             match ghost_authors(&repo, 180, 20) {
                 Ok(g) => {
                     let body = serde_json::to_string_pretty(&g).unwrap_or_default();
@@ -352,7 +397,7 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
 
         if url.starts_with("/api/dig") {
             let pat = q.clone().unwrap_or_default();
-            let repo = state.lock().unwrap();
+            let repo = state.lock().unwrap().clone();
             match dig_pattern(&repo, &pat, 20) {
                 Ok(d) => {
                     let body = serde_json::to_string_pretty(&d).unwrap_or_default();
@@ -370,7 +415,7 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
         }
 
         if url.starts_with("/api/pairs") {
-            let repo = state.lock().unwrap();
+            let repo = state.lock().unwrap().clone();
             match fix_break_pairs(&repo, "365 days ago", 12) {
                 Ok(p) => {
                     let body = serde_json::to_string_pretty(&p).unwrap_or_default();
@@ -396,7 +441,8 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
             let fast = query_param(&url, "fast")
                 .map(|v| v != "0" && !v.eq_ignore_ascii_case("false"))
                 .unwrap_or(true);
-            let repo = state.lock().unwrap();
+            // Clone under lock, then drop — hunt runs long git work without blocking UI.
+            let repo = state.lock().unwrap().clone();
             match bug_hunt_ex(&repo, &qq, path.as_deref(), "180 days ago", fast) {
                 Ok(h) => {
                     let body = serde_json::to_string_pretty(&h).unwrap_or_default();
@@ -415,7 +461,7 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
 
         if url.starts_with("/api/timeline") {
             let path = path_q.unwrap_or_else(|| "README.md".into());
-            let repo = state.lock().unwrap();
+            let repo = state.lock().unwrap().clone();
             match file_timeline(&repo, &path, 40) {
                 Ok(t) => {
                     let body = serde_json::to_string_pretty(&t).unwrap_or_default();
@@ -433,7 +479,7 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
         }
 
         if url.starts_with("/api/why") {
-            let repo = state.lock().unwrap();
+            let repo = state.lock().unwrap().clone();
             match why_broke(&repo, path_q.as_deref(), "90 days ago", q.as_deref(), 8) {
                 Ok(w) => {
                     let body = serde_json::to_string_pretty(&w).unwrap_or_default();
@@ -451,7 +497,7 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
         }
 
         if url.starts_with("/api/heatmap") {
-            let repo = state.lock().unwrap();
+            let repo = state.lock().unwrap().clone();
             match ownership_heatmap(&repo, "180 days ago", None) {
                 Ok(h) => {
                     let body = serde_json::to_string_pretty(&h).unwrap_or_default();
@@ -470,7 +516,7 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
 
         if url.starts_with("/api/blast") {
             let path = path_q.unwrap_or_else(|| "src/main.rs".into());
-            let repo = state.lock().unwrap();
+            let repo = state.lock().unwrap().clone();
             match blast_radius(&repo, &path, 15) {
                 Ok(b) => {
                     let body = serde_json::to_string_pretty(&b).unwrap_or_default();
@@ -489,7 +535,7 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
 
         if url.starts_with("/api/blame") {
             let path = path_q.unwrap_or_else(|| "README.md".into());
-            let repo = state.lock().unwrap();
+            let repo = state.lock().unwrap().clone();
             match file_blame(&repo, &path, 40) {
                 Ok(b) => {
                     let body = serde_json::to_string_pretty(&b).unwrap_or_default();
@@ -507,7 +553,7 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
         }
 
         if url.starts_with("/api/hotspots") {
-            let repo = state.lock().unwrap();
+            let repo = state.lock().unwrap().clone();
             match file_hotspots(&repo, "180 days ago", 20) {
                 Ok(h) => {
                     let body = serde_json::to_string_pretty(&h).unwrap_or_default();
@@ -525,7 +571,7 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
         }
 
         if url.starts_with("/api/stale") {
-            let repo = state.lock().unwrap();
+            let repo = state.lock().unwrap().clone();
             match stale_files(&repo, 180, 30) {
                 Ok(s) => {
                     let body = serde_json::to_string_pretty(&s).unwrap_or_default();
@@ -543,7 +589,7 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
         }
 
         if url.starts_with("/api/contributors") {
-            let repo = state.lock().unwrap();
+            let repo = state.lock().unwrap().clone();
             match contributors(&repo, "365 days ago", 20) {
                 Ok(c) => {
                     let body = serde_json::to_string_pretty(&c).unwrap_or_default();
@@ -561,7 +607,7 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
         }
 
         if url.starts_with("/api/churn") {
-            let repo = state.lock().unwrap();
+            let repo = state.lock().unwrap().clone();
             match commit_churn(&repo, "365 days ago") {
                 Ok(c) => {
                     let body = serde_json::to_string_pretty(&c).unwrap_or_default();
@@ -581,6 +627,54 @@ pub fn serve(addr: &str, repo_path: &Path) -> Result<(), String> {
         let _ = request.respond(respond(404, "not found", "text/plain"));
     }
     Ok(())
+}
+
+fn authorize(request: &Request, url: &str, expected: &str) -> bool {
+    if query_param(url, "token").as_deref() == Some(expected) {
+        return true;
+    }
+    for h in request.headers() {
+        let name = h.field.as_str().to_ascii_lowercase();
+        let value = h.value.as_str().to_string();
+        if name == "x-timeforge-token" && value == expected {
+            return true;
+        }
+        if name == "authorization" {
+            if let Some(rest) = value
+                .strip_prefix("Bearer ")
+                .or_else(|| value.strip_prefix("bearer "))
+            {
+                if rest.trim() == expected {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+fn is_loopback_bind(addr: &str) -> bool {
+    let host = bind_host(addr);
+    host.is_empty()
+        || host == "127.0.0.1"
+        || host == "localhost"
+        || host == "::1"
+        || host == "[::1]"
+}
+
+fn bind_host(addr: &str) -> &str {
+    if let Some(rest) = addr.strip_prefix('[') {
+        if let Some(end) = rest.find(']') {
+            return &rest[..end];
+        }
+    }
+    // "127.0.0.1:8790" or ":8790"
+    if let Some((h, port)) = addr.rsplit_once(':') {
+        if port.chars().all(|c| c.is_ascii_digit()) {
+            return h;
+        }
+    }
+    addr
 }
 
 fn query_param(url: &str, key: &str) -> Option<String> {
